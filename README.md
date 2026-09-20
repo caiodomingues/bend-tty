@@ -98,7 +98,7 @@ An effect is a def whose body is two imports; the host function is the def's
 name lowercased, dots to underscores:
 
 ```python
-def Tty.read(ms: U32, max: U32) -> IO(List<&2, U32>):
+def Tty.read(ms: U32, max: U32) -> IO(Maybe<&2, List<&2, U32>>):
   import "./effs/tty_read.c"
   import "./effs/tty_read.js"
 ```
@@ -139,9 +139,9 @@ moves fast; this package pins what it was written against.
 Three rules of the language shaped the Bend side and will shape yours: a
 def is visible only below its definition and two defs may not call each
 other, so a loop is one recursive def and a helper never calls back (the
-decoder classifies a byte and hands the token to the next iteration as a
-parameter); a `match` reads a parameter, never a computed value, so a
-read's answer is matched by the def it is passed to; and the host name is
+decoder classifies the bytes first, then one recursive def matches the
+tokens); a `match` reads a parameter, never a computed value, so a read's
+answer is matched by the def it is passed to; and the host name is
 the def's dotted name, so effects are `Tty.raw`, not `raw`, and a consumer
 that imports `as T` writes `T.Tty.raw`.
 
