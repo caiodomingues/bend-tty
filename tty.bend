@@ -2,14 +2,14 @@
 # mode, the window size, a timed read of stdin), plus what a terminal
 # UI needs on top of them in pure Bend: the escape sequences that move
 # the cursor and paint, and a decoder from the bytes stdin gives to
-# Tty.keys. A program loops: read bytes, decode, update, draw.
+# keys. A program loops: read bytes, decode, update, draw.
 #
 #   bend tty.bend        # checks; main prints the keys in a sample
 #
 # Every effect is a def whose body is a .c and a .js import; the host
 # function has the def's name lowercased, dots to underscores. The C
 # side is the native lane (Linux, macOS); the JS side runs under bun
-# on POSIX, where bun:ffi reaches poll and Tty.read.
+# on POSIX, where bun:ffi reaches poll and read.
 
 import Base
 
@@ -17,7 +17,8 @@ import Base
 # -------
 
 # raw mode on or off: no echo, no line buffering, Ctrl-C as byte 3.
-# Restored at exit. A no-op when stdin is not a terminal
+# Restored at exit and on SIGTERM, SIGHUP, SIGINT. A no-op when stdin
+# is not a terminal
 def Tty.raw(on: Bool) -> IO(Unit):
   import "./effs/tty_raw.c"
   import "./effs/tty_raw.js"
@@ -28,9 +29,10 @@ def Tty.size() -> IO(U32 & U32):
   import "./effs/tty_size.js"
 
 # the bytes stdin has within ms milliseconds, at most max of them:
-# Some{[]} on a timeout, None at the end of the input (a closed pipe)
-# or on an error. Waits on a helper thread (C) or a parked fd (JS), so
-# other computations keep running
+# Some{[]} on a timeout (or when another computation drained the
+# terminal first), None at the end of a pipe or on an error. Waits on
+# a helper thread (C) or a parked fd (JS), so other computations keep
+# running
 def Tty.read(ms: U32, max: U32) -> IO(Maybe<&2, List<&2, U32>>):
   import "./effs/tty_read.c"
   import "./effs/tty_read.js"

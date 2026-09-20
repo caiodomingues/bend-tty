@@ -93,8 +93,9 @@ demos use 4096) and a `ms` that lets a keystroke land whole.
 `Delete`/`PageUp`/`PageDown`, `Enter`/`Tab`/`Backspace`, `Ctrl`, a lone
 `Esc` and `Alt`, Home/End, Insert, F1-F12, a Shift-modified arrow, an
 unknown CSI, UTF-8 (`ç`, `€`) and its malformed shapes. Every claim is
-closed, so `PROOF.bend` is sixteen `{==}`: the checker runs the decoder. Change `Up` to `Down` in `Tty.csi.a`
-and `bend PROOF.bend` refuses with the expected and observed terms. A claim
+closed, so `PROOF.bend` is sixteen `{==}`: the checker runs the decoder.
+Change `Up` to `Down` in `Tty.letter.a` and `bend PROOF.bend` refuses with
+the expected and observed terms. A claim
 over every byte (32..126 decodes as itself) needs lemmas over `U32`, which
 no library has yet.
 
@@ -125,7 +126,8 @@ def Tty.read(ms: U32, max: U32) -> IO(Maybe<&2, List<&2, U32>>):
   import "./effs/tty_read.js"
 ```
 
-**C** (`bend2/comp.ts` holds the runtime; these are its calls, as of 2.0.16):
+**C** (`bend2/comp.ts` holds the runtime; these are its calls, as of 2.0.16,
+unchanged in 2.0.18):
 
 - `Term tty_read_run(Env e, Term* f, IoWork* w)`: the arguments are `f[0..]`.
   A `U32`/`Nat` argument is the word itself (`(u32)f[0]`); a `Bool` is a
