@@ -16,12 +16,15 @@ static struct termios tty_raw_saved;
 static volatile int   tty_raw_live = 0;
 static int            tty_raw_hook = 0;
 
+// styles off, the cursor shown, the main screen back
+static const char tty_raw_reset[] = "\033[0m\033[?25h\033[?1049l";
+
 static void tty_raw_restore(void) {
   if (tty_raw_live) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &tty_raw_saved);
     tty_raw_live = 0;
-    if (write(STDOUT_FILENO, "[0m[?25h[?1049l", 20) < 0) {
-      // nothing to do on a closed stdout
+    if (write(STDOUT_FILENO, tty_raw_reset, sizeof(tty_raw_reset) - 1) < 0) {
+      // a closed stdout: nothing to restore on
     }
   }
 }
