@@ -52,8 +52,9 @@ def main() -> IO(Unit):
     T.Tty.raw(False{})
 ```
 
-`demos/counter.bend` is that program in full; `demos/keys.bend` prints what
-it decodes and works piped: `printf '\033[Aq' | bend demos/keys.bend`.
+That is `demos/minimal.bend`. `demos/counter.bend` adds Down, the size, and
+painting only on change; `demos/keys.bend` prints what it decodes and works
+piped: `printf '[Aq' | bend demos/keys.bend`.
 
 ## API
 
