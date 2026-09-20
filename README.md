@@ -83,6 +83,8 @@ no library has yet.
 - **Native** (`bend x.bend -o x`): Linux and macOS. `tty_raw.c` is termios,
   `tty_size.c` is `ioctl(TIOCGWINSZ)`, `tty_read.c` is a `poll` on a helper
   thread (`io_work`), so the event loop keeps serving other computations.
+  Verified on Linux with clang 14, under a pty and piped: keys, timeouts,
+  the end of input, raw mode on and restored at exit.
 - **JS** (`bend x.bend`): bun on POSIX. `tty_read.js` parks the computation
   on fd 0 with a deadline, the runtime's own wait shape, then reads what is
   there. Raw mode and the size go through `process.stdin`/`process.stdout`.
@@ -108,9 +110,7 @@ def Tty.read(ms: U32, max: U32) -> IO(Maybe<&2, List<&2, U32>>):
 - `Term tty_read_run(Env e, Term* f, IoWork* w)`: the arguments are `f[0..]`.
   A `U32`/`Nat` argument is the word itself (`(u32)f[0]`); a `Bool` is a
   constructor (`term_aux(f[0]) == CID_TRUE`); a handle is `io_hand_v(f[0])`;
-  a `String` becomes C text with `io_cstr(e, f[1], &w->size)`. The C side of
-  this package is written against those calls but has not been compiled yet
-  (no clang on the machine it was written on); the JS side has run.
+  a `String` becomes C text with `io_cstr(e, f[1], &w->size)`.
 - Answers: `(Term)n` for a number, `term_pak(CID_UNIT, 0)`, `io_tup(e, a, b)`,
   `io_node(e, CID_CON, head, tail, IO_HOTS & 16)` to cons a list,
   `io_str(e, p, n)` for a string, `io_done(e, v)` / `io_fail(e, code, NULL)`
