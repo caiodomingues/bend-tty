@@ -1,30 +1,42 @@
 // Tty
 // ===
 
-// Tty.read(ms, max): the bytes stdin has within ms, at most max: [] on
-// a timeout or an error. The wait is a poll on a helper thread
-// (io_work), so the event loop and the other computations go on.
+// Tty.read(ms, max): the bytes stdin has within ms, at most max:
+// Some{[]} on a timeout, None at the end of the input or on an error.
+// The wait is a poll on a helper thread (io_work), so the event loop
+// and the other computations go on.
 
 #include <poll.h>
 
+// w->code: 0 with bytes or a timeout, 1 at the end of the input, errno
+// on an error
 static void tty_read_call(IoWork* w) {
   struct pollfd p = { STDIN_FILENO, POLLIN, 0 };
   int r = poll(&p, 1, (int)w->made);
+  w->size = 0;
+  w->code = 0;
   if (r > 0) {
-    w->size = io_sys_end(w, read(STDIN_FILENO, w->data, w->word));
-  } else {
-    w->size = 0;
-    w->code = r < 0 ? (u32)errno : 0;
+    ssize_t n = read(STDIN_FILENO, w->data, w->word);
+    w->size = io_sys_end(w, n);
+    w->code = n == 0 ? 1 : w->code;
+  } else if (r < 0) {
+    w->code = (u32)errno;
   }
 }
 
 static Term tty_read_pack(Env e, IoWork* w) {
-  Term xs = term_pak(CID_NIL, 0);
-  for (u64 i = w->code ? 0 : w->size; i > 0; i -= 1) {
-    xs = io_node(e, CID_CON, ((uint8_t*)w->data)[i - 1], xs, IO_HOTS & 16);
+  Term r;
+  if (w->code != 0) {
+    r = term_pak(CID_NONE, 0);
+  } else {
+    Term xs = term_pak(CID_NIL, 0);
+    for (u64 i = w->size; i > 0; i -= 1) {
+      xs = io_node(e, CID_CON, ((uint8_t*)w->data)[i - 1], xs, IO_HOTS & 16);
+    }
+    r = io_box(e, CID_SOME, xs, IO_HOTS & 32);
   }
   free(w->data);
-  return xs;
+  return r;
 }
 
 Term tty_read_run(Env e, Term* f, IoWork* w) {

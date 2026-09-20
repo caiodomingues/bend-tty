@@ -2,8 +2,9 @@
 // ===
 
 // Tty.raw(on): raw mode through the host's tty stream; restored at exit.
+// A Bool crosses into JS as a boolean.
 function tty_raw(on) {
-  const want = on.$ === "True";
+  const want = on === true;
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(want);
     if (want && !globalThis.BEND_TTY_HOOK) {

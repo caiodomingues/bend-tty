@@ -41,6 +41,26 @@ def draw(wh: U32 & U32, n: U32) -> IO(Unit):
   (w, h) = wh
   IO.write(frame(n, w, h))
 
+# every key of a read applied to the state; None quits
+def steps(ks: List<&2, T.Key>, st: Maybe<&2, U32>) -> Maybe<&2, U32>:
+  match ks:
+    case Nil{}:
+      st
+    case k <> rest:
+      match st:
+        case None{}:
+          None{}
+        case Some{n}:
+          steps(rest, step(n, k))
+
+# the read's answer folded in: None at the end of the input
+def got(n: U32, r: Maybe<&2, List<&2, U32>>) -> Maybe<&2, U32>:
+  match r:
+    case None{}:
+      None{}
+    case Some{bs}:
+      steps(T.Tty.keys(bs), Some{n})
+
 def loop(fuel: Nat, st: Maybe<&2, U32>, ks: List<&2, T.Key>) -> IO(Unit):
   match fuel:
     case 0n:
@@ -55,8 +75,8 @@ def loop(fuel: Nat, st: Maybe<&2, U32>, ks: List<&2, T.Key>) -> IO(Unit):
               do IO<Unit>:
                 wh : U32 & U32 <- T.Tty.size()
                 draw(wh, n)
-                bs : List<&2, U32> <- T.Tty.read(50, 64)
-                loop(p, Some{n}, T.Tty.keys(bs))
+                r : Maybe<&2, List<&2, U32>> <- T.Tty.read(50, 64)
+                loop(p, got(n, r), Nil{})
             case k <> rest:
               loop(p, step(n, k), rest)
 

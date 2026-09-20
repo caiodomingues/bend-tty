@@ -27,10 +27,11 @@ def Tty.size() -> IO(U32 & U32):
   import "./effs/tty_size.c"
   import "./effs/tty_size.js"
 
-# the bytes stdin has within ms milliseconds, at most max of them: [] on
-# a timeout. Waits on a helper thread (C) or a parked fd (JS), so other
-# computations keep running
-def Tty.read(ms: U32, max: U32) -> IO(List<&2, U32>):
+# the bytes stdin has within ms milliseconds, at most max of them:
+# Some{[]} on a timeout, None at the end of the input (a closed pipe)
+# or on an error. Waits on a helper thread (C) or a parked fd (JS), so
+# other computations keep running
+def Tty.read(ms: U32, max: U32) -> IO(Maybe<&2, List<&2, U32>>):
   import "./effs/tty_read.c"
   import "./effs/tty_read.js"
 
