@@ -84,7 +84,9 @@ def Tty.reset() -> String:
 
 type Key is Data:
   Char{code: U32}   # a printable, as a Unicode code point
+  Alt{code: U32}    # Alt (Meta) with a printable: ESC then the byte
   Ctrl{code: U32}   # Ctrl-A .. Ctrl-Z as 1 .. 26 (Ctrl-C is 3)
+  F{n: U32}         # F1 .. F12
   Enter{}
   Tab{}
   Backspace{}
@@ -95,32 +97,43 @@ type Key is Data:
   Right{}
   Home{}
   End{}
+  Insert{}
   Delete{}
   PageUp{}
   PageDown{}
 
-# a byte, classified once, so the decoder matches a parameter: a match
-# reads a parameter, never a computed value, and the decoder is one
-# recursive def over the bytes it has not seen yet
+# a byte classified by the range ECMA-48 gives it, once, so the
+# decoder matches a parameter: a match reads a parameter, never a
+# computed value, and the decoder is one recursive def over the tokens
 type Tok is Data:
   TEsc{}            # 27
-  TBracket{}        # [
-  TTilde{}          # ~
-  TDigit{d: U32}    # 0 .. 9, as its value
-  TLetter{c: U32}   # A .. Z
-  TCtrl{c: U32}     # 1 .. 31 but 9, 10, 13; and 127
-  TPlain{c: U32}    # 32 .. 126, and 9, 10, 13
-  TLead2{c: U32}    # a UTF-8 lead of 2 bytes, its payload bits
-  TLead3{c: U32}
-  TLead4{c: U32}
-  TCont{c: U32}     # a UTF-8 continuation, its 6 bits
+  TCtrl{c: U32}     # 0 .. 31 but 27; and 127
+  TInter{c: U32}    # 32 .. 47: an intermediate byte of a CSI, a printable otherwise
+  TParam{c: U32}    # 48 .. 63: a parameter byte of a CSI (digits, ;), a printable otherwise
+  TBracket{}        # 91: [ , the CSI introducer after ESC
+  TO{}              # 79: O , the SS3 introducer after ESC
+  TFinal{c: U32}    # 64 .. 126 otherwise: the final byte of a CSI or SS3, a printable otherwise
+  TCont{c: U32}     # 128 .. 191: a UTF-8 continuation, its 6 bits
+  TLead2{c: U32}    # 194 .. 223: a UTF-8 lead of 2 bytes, its payload bits
+  TLead3{c: U32}    # 224 .. 239
+  TLead4{c: U32}    # 240 .. 244
+  TBad{}            # 192, 193, 245 .. 255: never valid UTF-8
+
+# the classifier is a chain of verdicts, each a def that matches the
+# Bool the caller computed, from the highest range down
+def Tty.tok.lead4(+b: U32, c: Bool) -> Tok:
+  match c:
+    case True{}:
+      TLead4{U32.and(b, 7)}
+    case False{}:
+      TBad{}
 
 def Tty.tok.lead3(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
       TLead3{U32.and(b, 15)}
     case False{}:
-      TLead4{U32.and(b, 7)}
+      Tty.tok.lead4(b, U32.is_le(b, 244))
 
 def Tty.tok.lead2(+b: U32, c: Bool) -> Tok:
   match c:
@@ -129,68 +142,75 @@ def Tty.tok.lead2(+b: U32, c: Bool) -> Tok:
     case False{}:
       Tty.tok.lead3(b, U32.is_lt(b, 240))
 
+def Tty.tok.overlong(+b: U32, c: Bool) -> Tok:
+  match c:
+    case True{}:
+      TBad{}
+    case False{}:
+      Tty.tok.lead2(b, U32.is_lt(b, 224))
+
 def Tty.tok.cont(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
       TCont{U32.and(b, 63)}
     case False{}:
-      Tty.tok.lead2(b, U32.is_lt(b, 224))
+      Tty.tok.overlong(b, U32.is_lt(b, 194))
 
-def Tty.tok.letter(+b: U32, c: Bool) -> Tok:
+def Tty.tok.o(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
-      TLetter{b}
+      TO{}
     case False{}:
-      TPlain{b}
-
-def Tty.tok.digit(+b: U32, c: Bool) -> Tok:
-  match c:
-    case True{}:
-      TDigit{U32.sub(b, 48)}
-    case False{}:
-      Tty.tok.letter(b, Bool.and(U32.is_ge(b, 65), U32.is_le(b, 90)))
-
-def Tty.tok.tilde(+b: U32, c: Bool) -> Tok:
-  match c:
-    case True{}:
-      TTilde{}
-    case False{}:
-      Tty.tok.digit(b, Bool.and(U32.is_ge(b, 48), U32.is_le(b, 57)))
+      TFinal{b}
 
 def Tty.tok.bracket(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
       TBracket{}
     case False{}:
-      Tty.tok.tilde(b, U32.is_eq(b, 126))
+      Tty.tok.o(b, U32.is_eq(b, 79))
 
-def Tty.tok.ctrl(+b: U32, c: Bool) -> Tok:
+def Tty.tok.param(+b: U32, c: Bool) -> Tok:
+  match c:
+    case True{}:
+      TParam{b}
+    case False{}:
+      Tty.tok.bracket(b, U32.is_eq(b, 91))
+
+def Tty.tok.inter(+b: U32, c: Bool) -> Tok:
+  match c:
+    case True{}:
+      TInter{b}
+    case False{}:
+      Tty.tok.param(b, U32.is_lt(b, 64))
+
+def Tty.tok.del(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
       TCtrl{b}
     case False{}:
-      Tty.tok.bracket(b, U32.is_eq(b, 91))
+      Tty.tok.inter(b, U32.is_lt(b, 48))
 
 def Tty.tok.esc(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
       TEsc{}
     case False{}:
-      Tty.tok.ctrl(b, Bool.and(U32.is_lt(b, 32), Bool.not(Bool.or(U32.is_eq(b, 9), Bool.or(U32.is_eq(b, 10), U32.is_eq(b, 13))))))
+      TCtrl{b}
 
-def Tty.tok.del(+b: U32, c: Bool) -> Tok:
+def Tty.tok.low(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
-      TCtrl{127}
-    case False{}:
       Tty.tok.esc(b, U32.is_eq(b, 27))
+    case False{}:
+      Tty.tok.del(b, U32.is_eq(b, 127))
 
 def Tty.tok.high(+b: U32, c: Bool) -> Tok:
   match c:
     case True{}:
       Tty.tok.cont(b, U32.is_lt(b, 192))
     case False{}:
-      Tty.tok.del(b, U32.is_eq(b, 127))
+      Tty.tok.low(b, U32.is_lt(b, 32))
 
 def Tty.tok.go(+b: U32) -> Tok:
   Tty.tok.high(b, U32.is_ge(b, 128))
@@ -205,61 +225,131 @@ def Tty.toks(bs: List<&2, U32>) -> List<&2, Tok>:
     case b <> t:
       Tty.tok(b) <> Tty.toks(t)
 
-# the letter after ESC [ names a key; anything else is dropped
-def Tty.csi.f(+c: U32, e: Bool) -> List<&2, Key>:
+# The keys a final byte names
+# ---------------------------
+
+# a control byte on its own
+def Tty.ctrl.enter(+c: U32, e: Bool) -> Key:
+  match e:
+    case True{}:
+      Enter{}
+    case False{}:
+      Ctrl{c}
+
+def Tty.ctrl.tab(+c: U32, e: Bool) -> Key:
+  match e:
+    case True{}:
+      Tab{}
+    case False{}:
+      Tty.ctrl.enter(c, Bool.or(U32.is_eq(c, 13), U32.is_eq(c, 10)))
+
+def Tty.ctrl.bs(+c: U32, e: Bool) -> Key:
+  match e:
+    case True{}:
+      Backspace{}
+    case False{}:
+      Tty.ctrl.tab(c, U32.is_eq(c, 9))
+
+def Tty.ctrl(+c: U32) -> Key:
+  Tty.ctrl.bs(c, Bool.or(U32.is_eq(c, 127), U32.is_eq(c, 8)))
+
+# the letter that ends ESC [ .. or ESC O ..: A B C D H F name keys, and
+# after ESC O, P Q R S name F1 .. F4; anything else is dropped
+def Tty.letter.s(+c: U32, e: Bool) -> List<&2, Key>:
+  match e:
+    case True{}:
+      [F{4}]
+    case False{}:
+      Nil{}
+
+def Tty.letter.r(+c: U32, e: Bool) -> List<&2, Key>:
+  match e:
+    case True{}:
+      [F{3}]
+    case False{}:
+      Tty.letter.s(c, U32.is_eq(c, 83))
+
+def Tty.letter.q(+c: U32, e: Bool) -> List<&2, Key>:
+  match e:
+    case True{}:
+      [F{2}]
+    case False{}:
+      Tty.letter.r(c, U32.is_eq(c, 82))
+
+def Tty.letter.p(+c: U32, e: Bool) -> List<&2, Key>:
+  match e:
+    case True{}:
+      [F{1}]
+    case False{}:
+      Tty.letter.q(c, U32.is_eq(c, 81))
+
+def Tty.letter.f(+c: U32, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
       [End{}]
     case False{}:
-      Nil{}
+      Tty.letter.p(c, U32.is_eq(c, 80))
 
-def Tty.csi.h(+c: U32, e: Bool) -> List<&2, Key>:
+def Tty.letter.h(+c: U32, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
       [Home{}]
     case False{}:
-      Tty.csi.f(c, U32.is_eq(c, 70))
+      Tty.letter.f(c, U32.is_eq(c, 70))
 
-def Tty.csi.d(+c: U32, e: Bool) -> List<&2, Key>:
+def Tty.letter.d(+c: U32, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
       [Left{}]
     case False{}:
-      Tty.csi.h(c, U32.is_eq(c, 72))
+      Tty.letter.h(c, U32.is_eq(c, 72))
 
-def Tty.csi.c(+c: U32, e: Bool) -> List<&2, Key>:
+def Tty.letter.c(+c: U32, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
       [Right{}]
     case False{}:
-      Tty.csi.d(c, U32.is_eq(c, 68))
+      Tty.letter.d(c, U32.is_eq(c, 68))
 
-def Tty.csi.b(+c: U32, e: Bool) -> List<&2, Key>:
+def Tty.letter.b(+c: U32, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
       [Down{}]
     case False{}:
-      Tty.csi.c(c, U32.is_eq(c, 67))
+      Tty.letter.c(c, U32.is_eq(c, 67))
 
-def Tty.csi.a(+c: U32, e: Bool) -> List<&2, Key>:
+def Tty.letter.a(+c: U32, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
       [Up{}]
     case False{}:
-      Tty.csi.b(c, U32.is_eq(c, 66))
+      Tty.letter.b(c, U32.is_eq(c, 66))
 
-def Tty.csi(+c: U32) -> List<&2, Key>:
-  Tty.csi.a(c, U32.is_eq(c, 65))
+def Tty.letter(+c: U32) -> List<&2, Key>:
+  Tty.letter.a(c, U32.is_eq(c, 65))
 
-# ESC [ n ~ : 1 Home, 3 Delete, 4 End, 5 PageUp, 6 PageDown
+# the first number of a CSI's parameters, the digits up to the first ;
+# (ESC [ 1 ; 2 A is Up with Shift: the modifier is ignored). ps holds
+# the parameter bytes reversed; value and done fold them with no match
+def Tty.num.go(+ps: List<&2, U32>, +value: U32, +done: Bool) -> U32:
+  match ps:
+    case Nil{}:
+      value
+    case c <> t:
+      +digit = Bool.and(U32.is_ge(c, 48), U32.is_le(c, 57))
+      +stop  = Bool.or(done, Bool.not(digit))
+      Tty.num.go(t, Bool.pick(U32, stop, value, U32.add(U32.mul(value, 10), U32.sub(c, 48))), stop)
+
+def Tty.num(ps: List<&2, U32>) -> U32:
+  Tty.num.go(List.reverse(&2, U32, ps), 0, False{})
+
+# ESC [ n ~ : Home Insert Delete End PageUp PageDown, then F5 .. F12
 def Tty.tilde.at(n: Nat) -> List<&2, Key>:
   match n:
-    case 0n:
-      Nil{}
     case 1n+0n:
       [Home{}]
     case 1n+1n+0n:
-      Nil{}
+      [Insert{}]
     case 1n+1n+1n+0n:
       [Delete{}]
     case 1n+1n+1n+1n+0n:
@@ -268,94 +358,144 @@ def Tty.tilde.at(n: Nat) -> List<&2, Key>:
       [PageUp{}]
     case 1n+1n+1n+1n+1n+1n+0n:
       [PageDown{}]
-    case 1n+1n+1n+1n+1n+1n+1n+p:
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{5}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{6}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{7}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{8}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{9}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{10}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{11}]
+    case 1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+1n+0n:
+      [F{12}]
+    case other:
       Nil{}
 
-def Tty.tilde(d: U32) -> List<&2, Key>:
-  Tty.tilde.at(U32.to_nat(d))
+def Tty.tilde(n: U32) -> List<&2, Key>:
+  Tty.tilde.at(U32.to_nat(n))
 
-# a plain byte is a key on its own
-def Tty.plain.tab(+c: U32, e: Bool) -> Key:
+# ESC [ ps c : ~ reads the number, a letter names the key
+def Tty.csi.fin(+c: U32, ps: List<&2, U32>, e: Bool) -> List<&2, Key>:
   match e:
     case True{}:
-      Tab{}
+      Tty.tilde(Tty.num(ps))
     case False{}:
-      Char{c}
+      Tty.letter(c)
 
-def Tty.plain.enter(+c: U32, e: Bool) -> Key:
-  match e:
-    case True{}:
-      Enter{}
-    case False{}:
-      Tty.plain.tab(c, U32.is_eq(c, 9))
+def Tty.csi(+c: U32, ps: List<&2, U32>) -> List<&2, Key>:
+  Tty.csi.fin(c, ps, U32.is_eq(c, 126))
 
-def Tty.plain(+c: U32) -> Key:
-  Tty.plain.enter(c, Bool.or(U32.is_eq(c, 13), U32.is_eq(c, 10)))
+# The decoder
+# -----------
+# One recursive def over the tokens, with the state of the sequence
+# in progress. Every recursive call is on the tail, so termination is
+# structural. A sequence that ends or breaks decodes to nothing, but a
+# lone ESC (at the end, or before another ESC or a control byte) is the
+# Esc key, and ESC before a printable is Alt with it.
 
-def Tty.ctrl.bs(+c: U32, e: Bool) -> Key:
-  match e:
-    case True{}:
-      Backspace{}
-    case False{}:
-      Ctrl{c}
+type St is Data:
+  Start{}
+  AfterEsc{}
+  Csi{ps: List<&2, U32>}       # ESC [ seen; the parameter bytes so far, reversed
+  Ss3{}                        # ESC O seen
+  Utf{need: Nat, acc: U32}     # a code point with need continuation bytes to go
 
-def Tty.ctrl(+c: U32) -> Key:
-  Tty.ctrl.bs(c, Bool.or(U32.is_eq(c, 127), U32.is_eq(c, 8)))
+def Tty.flush(st: St) -> List<&2, Key>:
+  match st:
+    case AfterEsc{}:
+      [Esc{}]
+    case other:
+      Nil{}
 
-# The decoder: the bytes classified into tokens, then one recursive
-# def over the tokens, whose nested
-# patterns look ahead as far as an escape sequence goes. Every
-# recursive call is on a strict tail, so termination is structural.
-
-# ESC [ X, ESC [ n ~, and the UTF-8 shapes; an escape that fits
-# nothing decodes as Esc and its bytes as themselves
-def Tty.keys.go(ts: List<&2, Tok>) -> List<&2, Key>:
+def Tty.keys.go(ts: List<&2, Tok>, st: St) -> List<&2, Key>:
   match ts:
     case Nil{}:
-      Nil{}
-    case TEsc{} <> TBracket{} <> TLetter{c} <> rest:
-      List.append(&2, Key, Tty.csi(c), Tty.keys.go(rest))
-    case TEsc{} <> TBracket{} <> TDigit{d} <> TTilde{} <> rest:
-      List.append(&2, Key, Tty.tilde(d), Tty.keys.go(rest))
-    case TEsc{} <> rest:
-      Esc{} <> Tty.keys.go(rest)
-    case TLead2{a} <> TCont{b} <> rest:
-      Char{U32.or(U32.shln(a, 6n), b)} <> Tty.keys.go(rest)
-    case TLead3{a} <> TCont{b} <> TCont{c} <> rest:
-      Char{U32.or(U32.shln(U32.or(U32.shln(a, 6n), b), 6n), c)} <> Tty.keys.go(rest)
-    case TLead4{a} <> TCont{b} <> TCont{c} <> TCont{d} <> rest:
-      Char{U32.or(U32.shln(U32.or(U32.shln(U32.or(U32.shln(a, 6n), b), 6n), c), 6n), d)} <> Tty.keys.go(rest)
-    case TLead2{a} <> rest:
-      Tty.keys.go(rest)
-    case TLead3{a} <> rest:
-      Tty.keys.go(rest)
-    case TLead4{a} <> rest:
-      Tty.keys.go(rest)
-    case TCont{a} <> rest:
-      Tty.keys.go(rest)
-    case TBracket{} <> rest:
-      Char{91} <> Tty.keys.go(rest)
-    case TTilde{} <> rest:
-      Char{126} <> Tty.keys.go(rest)
-    case TDigit{d} <> rest:
-      Char{U32.add(d, 48)} <> Tty.keys.go(rest)
-    case TLetter{c} <> rest:
-      Char{c} <> Tty.keys.go(rest)
-    case TCtrl{c} <> rest:
-      Tty.ctrl(c) <> Tty.keys.go(rest)
-    case TPlain{c} <> rest:
-      Tty.plain(c) <> Tty.keys.go(rest)
+      Tty.flush(st)
+    case t <> rest:
+      match t st:
+        case TEsc{} Start{}:
+          Tty.keys.go(rest, AfterEsc{})
+        case TCtrl{c} Start{}:
+          Tty.ctrl(c) <> Tty.keys.go(rest, Start{})
+        case TInter{c} Start{}:
+          Char{c} <> Tty.keys.go(rest, Start{})
+        case TParam{c} Start{}:
+          Char{c} <> Tty.keys.go(rest, Start{})
+        case TBracket{} Start{}:
+          Char{91} <> Tty.keys.go(rest, Start{})
+        case TO{} Start{}:
+          Char{79} <> Tty.keys.go(rest, Start{})
+        case TFinal{c} Start{}:
+          Char{c} <> Tty.keys.go(rest, Start{})
+        case TLead2{c} Start{}:
+          Tty.keys.go(rest, Utf{1n, c})
+        case TLead3{c} Start{}:
+          Tty.keys.go(rest, Utf{2n, c})
+        case TLead4{c} Start{}:
+          Tty.keys.go(rest, Utf{3n, c})
+        case TCont{c} Start{}:
+          Tty.keys.go(rest, Start{})
+        case TBad{} Start{}:
+          Tty.keys.go(rest, Start{})
+        case TEsc{} AfterEsc{}:
+          Esc{} <> Tty.keys.go(rest, AfterEsc{})
+        case TBracket{} AfterEsc{}:
+          Tty.keys.go(rest, Csi{Nil{}})
+        case TO{} AfterEsc{}:
+          Tty.keys.go(rest, Ss3{})
+        case TInter{c} AfterEsc{}:
+          Alt{c} <> Tty.keys.go(rest, Start{})
+        case TParam{c} AfterEsc{}:
+          Alt{c} <> Tty.keys.go(rest, Start{})
+        case TFinal{c} AfterEsc{}:
+          Alt{c} <> Tty.keys.go(rest, Start{})
+        case TCtrl{c} AfterEsc{}:
+          Esc{} <> Tty.ctrl(c) <> Tty.keys.go(rest, Start{})
+        case other AfterEsc{}:
+          Esc{} <> Tty.keys.go(rest, Start{})
+        case TParam{c} Csi{ps}:
+          Tty.keys.go(rest, Csi{c <> ps})
+        case TInter{c} Csi{ps}:
+          Tty.keys.go(rest, Csi{ps})
+        case TFinal{c} Csi{ps}:
+          List.append(&2, Key, Tty.csi(c, ps), Tty.keys.go(rest, Start{}))
+        case other Csi{ps}:
+          Tty.keys.go(rest, Start{})
+        case TFinal{c} Ss3{}:
+          List.append(&2, Key, Tty.letter(c), Tty.keys.go(rest, Start{}))
+        case other Ss3{}:
+          Tty.keys.go(rest, Start{})
+        case TCont{c} Utf{need, acc}:
+          match need:
+            case 1n+0n:
+              Char{U32.or(U32.shln(acc, 6n), c)} <> Tty.keys.go(rest, Start{})
+            case 1n+1n+p:
+              Tty.keys.go(rest, Utf{1n+p, U32.or(U32.shln(acc, 6n), c)})
+            case 0n:
+              Tty.keys.go(rest, Start{})
+        case other Utf{need, acc}:
+          Tty.keys.go(rest, Start{})
 
 # the keys in a run of bytes from stdin
 def Tty.keys(bs: List<&2, U32>) -> List<&2, Key>:
-  Tty.keys.go(Tty.toks(bs))
+  Tty.keys.go(Tty.toks(bs), Start{})
 
 def Key.show(k: Key) -> String:
   match k:
     case Char{c}:
       "Char " ++ U32.show(c)
+    case Alt{c}:
+      "Alt " ++ U32.show(c)
     case Ctrl{c}:
       "Ctrl " ++ U32.show(c)
+    case F{n}:
+      "F" ++ U32.show(n)
     case Enter{}:
       "Enter"
     case Tab{}:
@@ -376,6 +516,8 @@ def Key.show(k: Key) -> String:
       "Home"
     case End{}:
       "End"
+    case Insert{}:
+      "Insert"
     case Delete{}:
       "Delete"
     case PageUp{}:
@@ -390,6 +532,6 @@ def Key.show_all(ks: List<&2, Key>) -> List<&2, String>:
     case k <> t:
       Key.show(k) <> Key.show_all(t)
 
-# q, Up, Enter, Delete, Ctrl-C, ็ (UTF-8 c3 a7), a lone Esc
+# q, Up, Enter, Delete, Ctrl-C, รง (c3 a7), F5, Shift+Up, F1, Alt-q, a lone Esc
 def main() -> List<&2, String>:
-  Key.show_all(Tty.keys([113, 27, 91, 65, 13, 27, 91, 51, 126, 3, 195, 167, 27]))
+  Key.show_all(Tty.keys([113, 27, 91, 65, 13, 27, 91, 51, 126, 3, 195, 167, 27, 91, 49, 53, 126, 27, 91, 49, 59, 50, 65, 27, 79, 80, 27, 113, 27]))

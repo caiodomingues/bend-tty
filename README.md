@@ -8,29 +8,46 @@ decoder a terminal UI needs, in pure Bend with its laws proven.
 import Base
 import ./tty.bend as T
 
-def loop(fuel: Nat, n: U32, ks: List<&2, T.Key>) -> IO(Unit):
+# the keys of one read applied: None at the end of the input or on Esc
+def apply(ks: List<&2, T.Key>, st: Maybe<&2, U32>) -> Maybe<&2, U32>:
+  match ks:
+    case Nil{}:
+      st
+    case k <> rest:
+      match k st:
+        case T.Esc{} s:
+          None{}
+        case T.Up{} Some{n}:
+          apply(rest, Some{(n + 1 : U32)})
+        case other s:
+          apply(rest, s)
+
+def got(n: U32, r: Maybe<&2, List<&2, U32>>) -> Maybe<&2, U32>:
+  match r:
+    case None{}:
+      None{}
+    case Some{bs}:
+      apply(T.Tty.keys(bs), Some{n})
+
+def loop(fuel: Nat, st: Maybe<&2, U32>) -> IO(Unit):
   match fuel:
     case 0n:
       IO.pure(Unit, Unit{})
     case 1n+p:
-      match ks:
-        case Nil{}:
+      match st:
+        case None{}:
+          IO.pure(Unit, Unit{})
+        case Some{+n}:
           do IO<Unit>:
             IO.write(T.Tty.clear() ++ T.Tty.goto(2, 2) ++ U32.show(n))
-            r : Maybe<&2, List<&2, U32>> <- T.Tty.read(50, 64)   # bytes within 50 ms
-            loop(p, n, keys_of(r))                                 # decoded; [] at the end of input
-        case T.Up{} <> rest:
-          loop(p, (n + 1 : U32), rest)
-        case T.Esc{} <> rest:
-          IO.pure(Unit, Unit{})
-        case k <> rest:
-          loop(p, n, rest)
+            r : Maybe<&2, List<&2, U32>> <- T.Tty.read(50, 4096)
+            loop(p, got(n, r))
 
 def main() -> IO(Unit):
   do IO<Unit>:
     T.Tty.raw(True{})
     IO.write(T.Tty.alt(True{}))
-    loop(100000n, 0, Nil{})
+    loop(100000n, Some{0})
     IO.write(T.Tty.alt(False{}))
     T.Tty.raw(False{})
 ```
@@ -42,14 +59,14 @@ it decodes and works piped: `printf '\033[Aq' | bend demos/keys.bend`.
 
 | effect | type | host |
 | --- | --- | --- |
-| `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3; restored at exit; a no-op when stdin is not a terminal |
+| `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3; restored at exit and on SIGTERM/SIGHUP/SIGINT (not on a runtime fail-stop); a no-op when stdin is not a terminal |
 | `Tty.size()` | `IO(U32 & U32)` | columns and rows; 80 x 24 when unknown |
-| `Tty.read(ms, max)` | `U32 -> U32 -> IO(Maybe<&2, List<&2, U32>>)` | the bytes stdin has within `ms`, at most `max`: `Some{[]}` on a timeout, `None` at the end of the input (a closed pipe) or on an error. Waits without blocking the other computations |
+| `Tty.read(ms, max)` | `U32 -> U32 -> IO(Maybe<&2, List<&2, U32>>)` | the bytes stdin has within `ms`, at most `max` (at least 1): `Some{[]}` on a timeout or when another computation drained the terminal first, `None` at the end of a pipe or on an error. Waits without blocking the other computations |
 
 | pure | what |
 | --- | --- |
 | `Tty.keys(bytes)` | `List<&2, U32> -> List<&2, Key>`: the decoder |
-| `Key` | `Char{code}` (a Unicode code point), `Ctrl{code}`, `Enter`, `Tab`, `Backspace`, `Esc`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `Delete`, `PageUp`, `PageDown` |
+| `Key` | `Char{code}` (a Unicode code point), `Alt{code}`, `Ctrl{code}`, `F{n}`, `Enter`, `Tab`, `Backspace`, `Esc`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `Insert`, `Delete`, `PageUp`, `PageDown` |
 | `Key.show(k)` | a name for it |
 | `Tty.clear()`, `Tty.home()`, `Tty.goto(x, y)` | erase; the cursor home; to column x, row y (from 1) |
 | `Tty.alt(on)`, `Tty.cursor(show)` | the alternate screen; the cursor |
@@ -58,22 +75,25 @@ it decodes and works piped: `printf '\033[Aq' | bend demos/keys.bend`.
 Every escape is a `String` for `IO.write`. A program is a loop: read, decode,
 update, draw a frame as one string.
 
-The decoder classifies each byte once (`Tok`) and then matches the token
-list with lookahead, so an escape sequence is a pattern: `TEsc <> TBracket <>
-TLetter{c} <> rest`. What it knows: `ESC [ A-D` (arrows), `ESC [ H`/`F`
-(Home/End), `ESC [ 1/3/4/5/6 ~` (Home/Delete/End/PageUp/PageDown), UTF-8 up
-to four bytes. What it drops: `ESC [ 2 ~` (Insert), any other `ESC [ x`
-letter, and the `ESC O x` shape of F1-F4 and of arrows in application mode,
-which decode as `Esc` and the characters. An escape split across two reads
-is not a sequence either; read with a `ms` that lets one land whole
-(terminals send it in one write).
+The decoder classifies each byte by the range ECMA-48 gives it (`Tok`), then
+one recursive def walks the tokens with the sequence in progress as its
+state. A CSI (`ESC [`, parameters, intermediates, a final byte) and an SS3
+(`ESC O x`) are consumed whole: the ones it knows become keys (arrows with
+or without a modifier, Home/End in both spellings, Insert/Delete/PageUp/
+PageDown, F1-F12), the rest become nothing, never a stray `Esc`. `ESC`
+before a printable is `Alt`; a lone `ESC`, or one before another `ESC` or a
+control byte, is `Esc`. UTF-8 decodes to the code point; a truncated,
+overlong or impossible sequence is dropped. A sequence cut by a read (by
+`ms`, or by `max`) is dropped too: read with a `max` a paste fits in (the
+demos use 4096) and a `ms` that lets a keystroke land whole.
 
 ## Laws
 
 `LAWS.bend` states what the sequences a terminal sends decode to: arrows,
 `Delete`/`PageUp`/`PageDown`, `Enter`/`Tab`/`Backspace`, `Ctrl`, a lone
-`Esc`, UTF-8 (`ç`, `€`). Every claim is closed, so `PROOF.bend` is ten
-`{==}`: the checker runs the decoder. Change `Up` to `Down` in `Tty.csi.a`
+`Esc` and `Alt`, Home/End, Insert, F1-F12, a Shift-modified arrow, an
+unknown CSI, UTF-8 (`ç`, `€`) and its malformed shapes. Every claim is
+closed, so `PROOF.bend` is sixteen `{==}`: the checker runs the decoder. Change `Up` to `Down` in `Tty.csi.a`
 and `bend PROOF.bend` refuses with the expected and observed terms. A claim
 over every byte (32..126 decodes as itself) needs lemmas over `U32`, which
 no library has yet.

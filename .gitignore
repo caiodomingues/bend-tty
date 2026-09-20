@@ -1,4 +1,6 @@
 *.out.js
 counter
 keys
+minimal
 *.gpu
+build/

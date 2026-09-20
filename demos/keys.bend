@@ -8,11 +8,7 @@ import ../tty.bend as T
 
 # a read's answer decoded: None at the end of the input
 def keys_of(r: Maybe<&2, List<&2, U32>>) -> Maybe<&2, List<&2, T.Key>>:
-  match r:
-    case None{}:
-      None{}
-    case Some{bs}:
-      Some{T.Tty.keys(bs)}
+  Maybe.map(&2, List<&2, U32>, List<&2, T.Key>, T.Tty.keys, r)
 
 # the keys of one read, printed; the loop is fuel-bounded
 def show(fuel: Nat, r: Maybe<&2, List<&2, T.Key>>) -> IO(Unit):
@@ -27,7 +23,7 @@ def show(fuel: Nat, r: Maybe<&2, List<&2, T.Key>>) -> IO(Unit):
           match ks:
             case Nil{}:
               do IO<Unit>:
-                r2 : Maybe<&2, List<&2, U32>> <- T.Tty.read(100, 64)
+                r2 : Maybe<&2, List<&2, U32>> <- T.Tty.read(100, 4096)
                 show(p, keys_of(r2))
             case T.Esc{} <> rest:
               IO.print("Esc: bye")

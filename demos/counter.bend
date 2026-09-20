@@ -1,7 +1,8 @@
 # counter: a number on the alternate screen; Up/Down or k/j change it,
-# Esc quits. A frame is one String: clear, draw. The loop carries the
-# state as Maybe<U32>, None to quit, so the result of a step is a
-# parameter of the next iteration, never a matched computation.
+# Esc quits. A frame is one String: clear, draw, painted only when the
+# number changed. The loop carries the state as Maybe<U32>, None to
+# quit, so the result of a step is a parameter of the next iteration,
+# never a matched computation.
 #
 #   bend demos/counter.bend -o counter && ./counter
 import Base
@@ -12,12 +13,16 @@ def frame(n: U32, cols: U32, rows: U32) -> String:
     ++ T.Tty.goto(2, 4) ++ T.Tty.fg(45) ++ U32.show(n) ++ T.Tty.reset()
     ++ T.Tty.goto(2, 6) ++ "Up/Down or k/j, Esc quits   " ++ U32.show(cols) ++ "x" ++ U32.show(rows)
 
+# one less, floored at 0
+def dec(+n: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(n, 0), 0, (n - 1 : U32))
+
 def step.char(+n: U32, k: Bool, j: Bool) -> U32:
   match k j:
     case True{} b:
       (n + 1 : U32)
     case False{} True{}:
-      (n - 1 : U32)
+      dec(n)
     case False{} False{}:
       n
 
@@ -27,7 +32,7 @@ def step(n: U32, k: T.Key) -> Maybe<&2, U32>:
     case T.Up{}:
       Some{(n + 1 : U32)}
     case T.Down{}:
-      Some{(n - 1 : U32)}
+      Some{dec(n)}
     case T.Char{+c}:
       Some{step.char(n, U32.is_eq(c, 107), U32.is_eq(c, 106))}
     case T.Esc{}:
@@ -40,6 +45,14 @@ def step(n: U32, k: T.Key) -> Maybe<&2, U32>:
 def draw(wh: U32 & U32, n: U32) -> IO(Unit):
   (w, h) = wh
   IO.write(frame(n, w, h))
+
+# a frame only when the number changed
+def draw_if(wh: U32 & U32, n: U32, same: Bool) -> IO(Unit):
+  match same:
+    case True{}:
+      IO.pure(Unit, Unit{})
+    case False{}:
+      draw(wh, n)
 
 # every key of a read applied to the state; None quits
 def steps(ks: List<&2, T.Key>, st: Maybe<&2, U32>) -> Maybe<&2, U32>:
@@ -61,7 +74,15 @@ def got(n: U32, r: Maybe<&2, List<&2, U32>>) -> Maybe<&2, U32>:
     case Some{bs}:
       steps(T.Tty.keys(bs), Some{n})
 
-def loop(fuel: Nat, st: Maybe<&2, U32>, ks: List<&2, T.Key>) -> IO(Unit):
+def same(shown: Maybe<&2, U32>, +n: U32) -> Bool:
+  match shown:
+    case None{}:
+      False{}
+    case Some{m}:
+      U32.is_eq(m, n)
+
+# shown is the number on screen, or none yet
+def loop(fuel: Nat, st: Maybe<&2, U32>, shown: Maybe<&2, U32>) -> IO(Unit):
   match fuel:
     case 0n:
       IO.pure(Unit, Unit{})
@@ -70,20 +91,16 @@ def loop(fuel: Nat, st: Maybe<&2, U32>, ks: List<&2, T.Key>) -> IO(Unit):
         case None{}:
           IO.pure(Unit, Unit{})
         case Some{+n}:
-          match ks:
-            case Nil{}:
-              do IO<Unit>:
-                wh : U32 & U32 <- T.Tty.size()
-                draw(wh, n)
-                r : Maybe<&2, List<&2, U32>> <- T.Tty.read(50, 64)
-                loop(p, got(n, r), Nil{})
-            case k <> rest:
-              loop(p, step(n, k), rest)
+          do IO<Unit>:
+            wh : U32 & U32 <- T.Tty.size()
+            draw_if(wh, n, same(shown, n))
+            r : Maybe<&2, List<&2, U32>> <- T.Tty.read(50, 4096)
+            loop(p, got(n, r), Some{n})
 
 def main() -> IO(Unit):
   do IO<Unit>:
     T.Tty.raw(True{})
     IO.write(T.Tty.alt(True{}) ++ T.Tty.cursor(False{}))
-    loop(1000000n, Some{0}, Nil{})
+    loop(1000000n, Some{0}, None{})
     IO.write(T.Tty.cursor(True{}) ++ T.Tty.alt(False{}))
     T.Tty.raw(False{})

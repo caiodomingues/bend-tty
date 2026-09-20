@@ -9,7 +9,11 @@ function tty_raw(on) {
     process.stdin.setRawMode(want);
     if (want && !globalThis.BEND_TTY_HOOK) {
       globalThis.BEND_TTY_HOOK = true;
-      process.on("exit", () => { try { process.stdin.setRawMode(false); } catch (e) {} });
+      const off = () => { try { process.stdin.setRawMode(false); } catch (e) {} };
+      process.on("exit", off);
+      for (const sig of ["SIGTERM", "SIGHUP", "SIGINT"]) {
+        process.on(sig, () => { off(); process.exit(128 + (sig === "SIGINT" ? 2 : sig === "SIGTERM" ? 15 : 1)); });
+      }
     }
   }
   return { $: "Unit" };

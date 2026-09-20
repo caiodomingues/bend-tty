@@ -3,8 +3,9 @@
 
 // Tty.read(ms, max): parks until stdin is readable or ms pass (a wait
 // with both an fd and a deadline), then reads what is there without
-// blocking: a zero-timeout poll first, so a timeout answers Some{[]};
-// a read of nothing is the end of the input, None.
+// blocking: a zero-timeout poll first, so a timeout answers Some{[]}.
+// A read of nothing is the end of a pipe (None), but on a terminal it
+// only means no byte is pending, as does EAGAIN: a timeout.
 function tty_read(ms, max, k) {
   const sys = io_sys();
   const more = () => {
@@ -13,11 +14,16 @@ function tty_read(ms, max, k) {
     if ((p[1] >>> 16) === 0) {
       return { $: "Some", value: { $: "Nil" } };
     }
-    const len = Math.min(Number(max), 2147483647);
-    const b = new Uint8Array(Math.max(len, 1));
+    const len = Math.max(1, Math.min(Number(max), 2147483647));
+    const b = new Uint8Array(len);
     const n = Number(sys.read(0, sys.ptr(b), len));
-    if (n <= 0) {
-      return { $: "None" };
+    if (n < 0) {
+      const code = sys.errno();
+      return code === 11 || code === 35 || code === 4
+        ? { $: "Some", value: { $: "Nil" } } : { $: "None" };
+    }
+    if (n === 0) {
+      return process.stdin.isTTY ? { $: "Some", value: { $: "Nil" } } : { $: "None" };
     }
     let xs = { $: "Nil" };
     for (let i = n; i > 0; i -= 1) {

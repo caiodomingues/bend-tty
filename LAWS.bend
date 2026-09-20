@@ -32,9 +32,37 @@ law keys_enter:
 law keys_ctrl:
   {T.Tty.keys([3, 1]) == [T.Ctrl{3}, T.Ctrl{1}] : List<&2, T.Key>}
 
-# LAW: a lone ESC, or one before something that is no sequence, is Esc
+# LAW: a lone ESC, or one before another ESC or a control byte, is
+# Esc; ESC before a printable is Alt with it
 law keys_esc:
-  {T.Tty.keys([27, 27, 113]) == [T.Esc{}, T.Esc{}, T.Char{113}] : List<&2, T.Key>}
+  {T.Tty.keys([27, 27, 113, 27, 3, 27]) == [T.Esc{}, T.Alt{113}, T.Esc{}, T.Ctrl{3}, T.Esc{}] : List<&2, T.Key>}
+
+# LAW: ESC [ H and ESC [ F, and ESC [ 1 ~ and ESC [ 4 ~, are Home and End
+law keys_home_end:
+  {T.Tty.keys([27, 91, 72, 27, 91, 70, 27, 91, 49, 126, 27, 91, 52, 126]) == [T.Home{}, T.End{}, T.Home{}, T.End{}] : List<&2, T.Key>}
+
+# LAW: ESC [ 2 ~ is Insert
+law keys_insert:
+  {T.Tty.keys([27, 91, 50, 126]) == [T.Insert{}] : List<&2, T.Key>}
+
+# LAW: ESC O P .. S are F1 .. F4; ESC [ 15 ~ .. ESC [ 24 ~ are F5 .. F12
+law keys_fkeys:
+  {T.Tty.keys([27, 79, 80, 27, 79, 83, 27, 91, 49, 53, 126, 27, 91, 50, 52, 126]) == [T.F{1}, T.F{4}, T.F{5}, T.F{12}] : List<&2, T.Key>}
+
+# LAW: a modifier parameter is ignored (Shift+Up is Up), and the
+# application-mode arrows (ESC O A) are arrows too
+law keys_modified:
+  {T.Tty.keys([27, 91, 49, 59, 50, 65, 27, 79, 66]) == [T.Up{}, T.Down{}] : List<&2, T.Key>}
+
+# LAW: an unknown CSI is consumed whole and decodes to nothing: no Esc,
+# no stray characters. ESC [ 9 9 z here
+law keys_unknown_csi:
+  {T.Tty.keys([27, 91, 57, 57, 122, 113]) == [T.Char{113}] : List<&2, T.Key>}
+
+# LAW: a truncated UTF-8 sequence, an overlong encoding and a byte no
+# UTF-8 has decode to nothing
+law keys_bad_utf8:
+  {T.Tty.keys([195, 192, 128, 255, 128, 128, 128, 113]) == [T.Char{113}] : List<&2, T.Key>}
 
 # LAW: UTF-8 decodes to the code point: ç is c3 a7, € is e2 82 ac
 law keys_utf8:
