@@ -3,9 +3,11 @@
 
 // Tty.raw(on): raw mode on (no echo, no line buffering, no signals:
 // Ctrl-C arrives as byte 3, Enter as 13) or off. Restored at exit and
-// on SIGTERM, SIGHUP and SIGINT (the signal is re-raised); a fail-stop
-// of the runtime (_exit) leaves the terminal as it was. A no-op when
-// stdin is not a terminal, so a piped program still runs.
+// on SIGTERM, SIGHUP and SIGINT (the signal is re-raised), along with
+// the cursor and the main screen, so a program that died on the
+// alternate screen leaves the shell usable; a fail-stop of the runtime
+// (_exit) leaves the terminal as it was. A no-op when stdin is not a
+// terminal, so a piped program still runs.
 
 #include <termios.h>
 #include <signal.h>
@@ -18,6 +20,9 @@ static void tty_raw_restore(void) {
   if (tty_raw_live) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &tty_raw_saved);
     tty_raw_live = 0;
+    if (write(STDOUT_FILENO, "[0m[?25h[?1049l", 20) < 0) {
+      // nothing to do on a closed stdout
+    }
   }
 }
 

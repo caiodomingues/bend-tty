@@ -60,7 +60,7 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 
 | effect | type | host |
 | --- | --- | --- |
-| `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3; restored at exit and on SIGTERM/SIGHUP/SIGINT (not on a runtime fail-stop); a no-op when stdin is not a terminal |
+| `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3. Turning it off, at exit or on SIGTERM/SIGHUP/SIGINT, also shows the cursor and leaves the alternate screen (not on a runtime fail-stop); a no-op when stdin is not a terminal |
 | `Tty.size()` | `IO(U32 & U32)` | columns and rows; 80 x 24 when unknown |
 | `Tty.read(ms, max)` | `U32 -> U32 -> IO(Maybe<&2, List<&2, U32>>)` | the bytes stdin has within `ms`, at most `max` (at least 1): `Some{[]}` on a timeout or when another computation drained the terminal first, `None` at the end of a pipe or on an error. Waits without blocking the other computations |
 
