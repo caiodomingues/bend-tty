@@ -46,9 +46,9 @@ static Term tty_read_pack(Env e, IoWork* w) {
   } else {
     Term xs = term_pak(CID_NIL, 0);
     for (u64 i = w->size; i > 0; i -= 1) {
-      xs = io_node(e, CID_CON, ((uint8_t*)w->data)[i - 1], xs, IO_HOTS & 16);
+      xs = io_node(e, CID_CON, ((uint8_t*)w->data)[i - 1], xs);
     }
-    r = io_box(e, CID_SOME, xs, IO_HOTS & 32);
+    r = io_box(e, CID_SOME, xs);
   }
   free(w->data);
   return r;

@@ -127,15 +127,15 @@ def Tty.read(ms: U32, max: U32) -> IO(Maybe<&2, List<&2, U32>>):
   import "./effs/tty_read.js"
 ```
 
-**C** (`bend2/comp.ts` holds the runtime; these are its calls, as of 2.0.16,
-unchanged in 2.0.18):
+**C** (`bend2/comp.ts` holds the runtime; these are its calls, as of 2.0.22;
+`io_node` and `io_box` took a trailing hot-bits argument up to 2.0.18):
 
 - `Term tty_read_run(Env e, Term* f, IoWork* w)`: the arguments are `f[0..]`.
   A `U32`/`Nat` argument is the word itself (`(u32)f[0]`); a `Bool` is a
   constructor (`term_aux(f[0]) == CID_TRUE`); a handle is `io_hand_v(f[0])`;
   a `String` becomes C text with `io_cstr(e, f[1], &w->size)`.
 - Answers: `(Term)n` for a number, `term_pak(CID_UNIT, 0)`, `io_tup(e, a, b)`,
-  `io_node(e, CID_CON, head, tail, IO_HOTS & 16)` to cons a list,
+  `io_node(e, CID_CON, head, tail)` to cons a list, `io_box(e, CID_SOME, v)` to wrap,
   `io_str(e, p, n)` for a string, `io_done(e, v)` / `io_fail(e, code, NULL)`
   for a `Result`.
 - A blocking call goes to a helper thread: `return io_work(w, call, pack)`,
