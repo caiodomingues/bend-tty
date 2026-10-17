@@ -7,6 +7,7 @@
 #   bend demos/counter.bend -o counter && ./counter
 import Base
 import ../tty.bend as T
+import ../tty_io.bend as IOT
 
 def frame(n: U32, cols: U32, rows: U32) -> String:
   T.Tty.clear() ++ T.Tty.goto(2, 2) ++ T.Tty.bold() ++ "counter" ++ T.Tty.reset()
@@ -92,15 +93,15 @@ def loop(fuel: Nat, st: Maybe<&2, U32>, shown: Maybe<&2, U32>) -> IO(Unit):
           IO.pure(Unit, Unit{})
         case Some{+n}:
           do IO<Unit>:
-            wh : U32 & U32 <- T.Tty.size()
+            wh : U32 & U32 <- IOT.Tty.size()
             draw_if(wh, n, same(shown, n))
-            r : Maybe<&2, List<&2, U32>> <- T.Tty.read(50, 4096)
+            r : Maybe<&2, List<&2, U32>> <- IOT.Tty.read(50, 4096)
             loop(p, got(n, r), Some{n})
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    T.Tty.raw(True{})
+    IOT.Tty.raw(True{})
     IO.write(T.Tty.alt(True{}) ++ T.Tty.cursor(False{}))
     loop(1000000n, Some{0}, None{})
     IO.write(T.Tty.cursor(True{}) ++ T.Tty.alt(False{}))
-    T.Tty.raw(False{})
+    IOT.Tty.raw(False{})

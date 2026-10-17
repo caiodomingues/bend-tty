@@ -5,6 +5,7 @@
 #   printf '\033[Aq\003' | bend demos/keys.bend
 import Base
 import ../tty.bend as T
+import ../tty_io.bend as IOT
 
 # a read's answer decoded: None at the end of the input
 def keys_of(r: Maybe<&2, List<&2, U32>>) -> Maybe<&2, List<&2, T.Key>>:
@@ -23,7 +24,7 @@ def show(fuel: Nat, r: Maybe<&2, List<&2, T.Key>>) -> IO(Unit):
           match ks:
             case Nil{}:
               do IO<Unit>:
-                r2 : Maybe<&2, List<&2, U32>> <- T.Tty.read(100, 4096)
+                r2 : Maybe<&2, List<&2, U32>> <- IOT.Tty.read(100, 4096)
                 show(p, keys_of(r2))
             case T.Esc{} <> rest:
               IO.print("Esc: bye")
@@ -36,6 +37,6 @@ def show(fuel: Nat, r: Maybe<&2, List<&2, T.Key>>) -> IO(Unit):
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    T.Tty.raw(True{})
+    IOT.Tty.raw(True{})
     IO.print("press keys; Esc or Ctrl-C quits")
     show(100000n, Some{Nil{}})
