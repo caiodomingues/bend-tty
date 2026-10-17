@@ -36,7 +36,7 @@ static void tty_raw_signal(int sig) {
 }
 
 Term tty_raw_run(Env e, Term* f, IoWork* w) {
-  int on = term_aux(f[0]) == CID_TRUE;
+  int on = term_aux(f[0]) == CID(True);
   if (on && !tty_raw_live && isatty(STDIN_FILENO)
       && tcgetattr(STDIN_FILENO, &tty_raw_saved) == 0) {
     struct termios t = tty_raw_saved;
@@ -56,9 +56,9 @@ Term tty_raw_run(Env e, Term* f, IoWork* w) {
   } else if (!on) {
     tty_raw_restore();
   }
-  return term_pak(CID_UNIT, 0);
+  return term_pak(CID(Unit), 0);
 }
 
 static void __attribute__((constructor)) tty_raw_use(void) {
-  io_eff(CID_TTY_RAW, tty_raw_run, 0);
+  io_eff(CID(Tty.raw), tty_raw_run);
 }

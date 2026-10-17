@@ -12,8 +12,7 @@
 // on an error. A read of nothing is the end of a pipe or file, but on
 // a terminal in raw mode (VMIN 0) it only means no byte is pending, as
 // when another computation drained the same descriptor; EAGAIN says
-// the same on a non-blocking one. Both are a timeout. EINTR retries,
-// as the runtime's own poll does.
+// the same on a non-blocking one. Both are a timeout. EINTR retries.
 static void tty_read_call(IoWork* w) {
   struct pollfd p = { STDIN_FILENO, POLLIN, 0 };
   int r;
@@ -42,13 +41,13 @@ static void tty_read_call(IoWork* w) {
 static Term tty_read_pack(Env e, IoWork* w) {
   Term r;
   if (w->code != 0) {
-    r = term_pak(CID_NONE, 0);
+    r = term_pak(CID(None), 0);
   } else {
-    Term xs = term_pak(CID_NIL, 0);
+    Term xs = term_pak(CID(Nil), 0);
     for (u64 i = w->size; i > 0; i -= 1) {
-      xs = io_node(e, CID_CON, ((uint8_t*)w->data)[i - 1], xs);
+      xs = io_node(e, CID(Con), ((uint8_t*)w->data)[i - 1], xs);
     }
-    r = io_box(e, CID_SOME, xs);
+    r = io_box(e, CID(Some), xs);
   }
   free(w->data);
   return r;
@@ -62,5 +61,5 @@ Term tty_read_run(Env e, Term* f, IoWork* w) {
 }
 
 static void __attribute__((constructor)) tty_read_use(void) {
-  io_eff(CID_TTY_READ, tty_read_run, 0);
+  io_eff(CID(Tty.read), tty_read_run);
 }

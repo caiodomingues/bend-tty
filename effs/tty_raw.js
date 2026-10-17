@@ -20,5 +20,7 @@ function tty_raw(on) {
       }
     }
   }
-  return { $: "Unit" };
+  return { $: CID(Unit) };
 }
+
+io_eff(CID(Tty.raw), tty_raw);

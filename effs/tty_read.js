@@ -3,35 +3,38 @@
 
 // Tty.read(ms, max): parks until stdin is readable or ms pass (a wait
 // with both an fd and a deadline), then reads what is there without
-// blocking: a zero-timeout poll first, so a timeout answers Some{[]}.
+// blocking: a zero-timeout select first, so a timeout answers Some{[]}.
 // A read of nothing is the end of a pipe (None), but on a terminal it
 // only means no byte is pending, as does EAGAIN: a timeout.
 function tty_read(ms, max, k) {
   const sys = io_sys();
+  const empty = () => ({ $: CID(Some), value: { $: CID(Nil) } });
   const more = () => {
-    const p = Int32Array.of(0, 1);
-    sys.poll(sys.ptr(p), 1, 0);
-    if ((p[1] >>> 16) === 0) {
-      return { $: "Some", value: { $: "Nil" } };
+    // a whole fd_set and a zero timeval, sized for Linux and macOS
+    const set = new Uint8Array(128);
+    set[0] = 1;
+    const tv = new BigInt64Array(2);
+    if (sys.select(1, sys.ptr(set), null, null, sys.ptr(tv)) <= 0 || (set[0] & 1) === 0) {
+      return empty();
     }
     const len = Math.max(1, Math.min(Number(max), 2147483647));
     const b = new Uint8Array(len);
     const n = Number(sys.read(0, sys.ptr(b), len));
     if (n < 0) {
       const code = sys.errno();
-      return code === 11 || code === 35 || code === 4
-        ? { $: "Some", value: { $: "Nil" } } : { $: "None" };
+      return code === 11 || code === 35 || code === 4 ? empty() : { $: CID(None) };
     }
     if (n === 0) {
-      return process.stdin.isTTY ? { $: "Some", value: { $: "Nil" } } : { $: "None" };
+      return process.stdin.isTTY ? empty() : { $: CID(None) };
     }
-    let xs = { $: "Nil" };
+    let xs = { $: CID(Nil) };
     for (let i = n; i > 0; i -= 1) {
-      xs = { $: "Con", head: b[i - 1], tail: xs };
+      xs = { $: CID(Con), head: b[i - 1], tail: xs };
     }
-    return { $: "Some", value: xs };
+    return { $: CID(Some), value: xs };
   };
-  globalThis.BEND_IO.waits.push({ fd: 0, out: false,
-    at: performance.now() + Number(ms), k: k, more: more });
+  io_park_on(0, false, k, more, performance.now() + Number(ms));
   return undefined;
 }
+
+io_eff(CID(Tty.read), tty_read);

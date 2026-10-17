@@ -18,5 +18,5 @@ Term tty_size_run(Env e, Term* f, IoWork* w) {
 }
 
 static void __attribute__((constructor)) tty_size_use(void) {
-  io_eff(CID_TTY_SIZE, tty_size_run, 0);
+  io_eff(CID(Tty.size), tty_size_run);
 }
