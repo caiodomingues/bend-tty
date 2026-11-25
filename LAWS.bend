@@ -379,3 +379,119 @@ law color_escapes:
     C.Color.fg(C.Level.TrueColor{}, C.Color.Rgb{255, 136, 0}), C.Color.bg(C.Level.Basic{}, C.Color.Ansi256{196})]
    == [SCon{Chr{27}, "[31m"}, SCon{Chr{27}, "[101m"}, SCon{Chr{27}, "[39m"}, SCon{Chr{27}, "[38;5;196m"},
        SCon{Chr{27}, "[38;2;255;136;0m"}, SCon{Chr{27}, "[101m"}] : List<&2, String>}
+
+# Styles
+# ------
+# Style.paint. The first two laws hold for every style and string; the
+# samples are chalk 6.0.1's output for the same chain (source/index.js at
+# 7211001): nesting reopens the outer style after each of its closing codes
+# inside, and a line break is wrapped in close-all and open-all.
+
+# LAW: at Level.None the string is itself: nothing styled sends an
+# escape to a pipe
+law paint_none:
+  for st: C.Style
+  for s: String
+  {C.Style.paint(C.Level.None{}, st, s) == s : String}
+
+# LAW: the empty string stays empty at every level
+law paint_empty_all:
+  for l: C.Level
+  for st: C.Style
+  {C.Style.paint(l, st, "") == "" : String}
+
+law paint_red:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[31mx" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_red_bold:
+  {C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.Basic{1}, C.Style.plain())), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1mx" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_nest_fg:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{4}, C.Style.plain()), ("a"))) ++ ("b"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[34ma" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{27}, SNil{}} ++ "[31mb" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_nest_bold_dim:
+  {C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.dim(C.Style.plain()), ("a"))) ++ ("b"))
+   == SCon{Chr{27}, SNil{}} ++ "[1m" ++ SCon{Chr{27}, SNil{}} ++ "[2ma" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[1mb" ++ SCon{Chr{27}, SNil{}} ++ "[22m" : String}
+
+law paint_newline:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), ("a" ++ SCon{Chr{10}, SNil{}} ++ "b"))
+   == SCon{Chr{27}, SNil{}} ++ "[31ma" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[31mb" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_crlf:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), ("a" ++ SCon{Chr{13}, SNil{}} ++ SCon{Chr{10}, SNil{}} ++ "b"))
+   == SCon{Chr{27}, SNil{}} ++ "[31ma" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{13}, SNil{}} ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[31mb" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_trailing_newline:
+  {C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.Basic{1}, C.Style.plain())), ("a" ++ SCon{Chr{10}, SNil{}}))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1ma" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1m" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_empty:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), (""))
+   == "" : String}
+
+law paint_level_none:
+  {C.Style.paint(C.Level.None{}, C.Style.bold(C.Style.fg(C.Color.Basic{1}, C.Style.plain())), ("x"))
+   == "x" : String}
+
+law paint_hex_256:
+  {C.Style.paint(C.Level.Ansi256{}, C.Style.fg(C.Color.hex("#ff8800"), C.Style.plain()), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[38;5;214mx" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_hex_16:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.hex("#ff8800"), C.Style.plain()), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[93mx" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_hex_true:
+  {C.Style.paint(C.Level.TrueColor{}, C.Style.fg(C.Color.hex("#ff8800"), C.Style.plain()), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[38;2;255;136;0mx" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_bg_underline:
+  {C.Style.paint(C.Level.Basic{}, C.Style.underline(C.Style.bg(C.Color.Basic{4}, C.Style.plain())), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[44m" ++ SCon{Chr{27}, SNil{}} ++ "[4mx" ++ SCon{Chr{27}, SNil{}} ++ "[24m" ++ SCon{Chr{27}, SNil{}} ++ "[49m" : String}
+
+law paint_all_modifiers:
+  {C.Style.paint(C.Level.Basic{}, C.Style.strike(C.Style.hidden(C.Style.inverse(C.Style.underline(C.Style.italic(C.Style.dim(C.Style.bold(C.Style.plain()))))))), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[1m" ++ SCon{Chr{27}, SNil{}} ++ "[2m" ++ SCon{Chr{27}, SNil{}} ++ "[3m" ++ SCon{Chr{27}, SNil{}} ++ "[4m" ++ SCon{Chr{27}, SNil{}} ++ "[7m" ++ SCon{Chr{27}, SNil{}} ++ "[8m" ++ SCon{Chr{27}, SNil{}} ++ "[9mx" ++ SCon{Chr{27}, SNil{}} ++ "[29m" ++ SCon{Chr{27}, SNil{}} ++ "[28m" ++ SCon{Chr{27}, SNil{}} ++ "[27m" ++ SCon{Chr{27}, SNil{}} ++ "[24m" ++ SCon{Chr{27}, SNil{}} ++ "[23m" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[22m" : String}
+
+law paint_reopen_two:
+  {C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.Basic{1}, C.Style.plain())), (C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{4}, C.Style.plain()), ("a"))) ++ ("b") ++ (C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.plain()), ("c"))) ++ ("d"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1m" ++ SCon{Chr{27}, SNil{}} ++ "[34ma" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{27}, SNil{}} ++ "[31mb" ++ SCon{Chr{27}, SNil{}} ++ "[1mc" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[1md" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_deep:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{2}, C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{4}, C.Style.plain()), ("a"))) ++ ("b"))) ++ ("c"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[32m" ++ SCon{Chr{27}, SNil{}} ++ "[34ma" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[32mb" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{27}, SNil{}} ++ "[31mc" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_inverse_italic:
+  {C.Style.paint(C.Level.Basic{}, C.Style.inverse(C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.italic(C.Style.plain()), ("a"))) ++ ("b"))
+   == SCon{Chr{27}, SNil{}} ++ "[7m" ++ SCon{Chr{27}, SNil{}} ++ "[3ma" ++ SCon{Chr{27}, SNil{}} ++ "[23mb" ++ SCon{Chr{27}, SNil{}} ++ "[27m" : String}
+
+law paint_fg_bg_lines:
+  {C.Style.paint(C.Level.Basic{}, C.Style.bg(C.Color.Basic{7}, C.Style.fg(C.Color.Basic{1}, C.Style.plain())), ("a" ++ SCon{Chr{10}, SNil{}} ++ "b"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[47ma" ++ SCon{Chr{27}, SNil{}} ++ "[49m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[47mb" ++ SCon{Chr{27}, SNil{}} ++ "[49m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_bg_hex_256:
+  {C.Style.paint(C.Level.Ansi256{}, C.Style.bg(C.Color.hex("#0080ff"), C.Style.plain()), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[48;5;39mx" ++ SCon{Chr{27}, SNil{}} ++ "[49m" : String}
+
+law paint_other_escape:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), (SCon{Chr{27}, SNil{}} ++ "[1mx"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1mx" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_ansi256_16:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Ansi256{196}, C.Style.plain()), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[91mx" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_ansi256_256:
+  {C.Style.paint(C.Level.Ansi256{}, C.Style.bg(C.Color.Ansi256{21}, C.Style.fg(C.Color.Ansi256{196}, C.Style.plain())), ("x"))
+   == SCon{Chr{27}, SNil{}} ++ "[38;5;196m" ++ SCon{Chr{27}, SNil{}} ++ "[48;5;21mx" ++ SCon{Chr{27}, SNil{}} ++ "[49m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_rgb_true_nest:
+  {C.Style.paint(C.Level.TrueColor{}, C.Style.fg(C.Color.Rgb{10, 20, 30}, C.Style.plain()), (C.Style.paint(C.Level.TrueColor{}, C.Style.fg(C.Color.Rgb{200, 100, 0}, C.Style.plain()), ("a"))) ++ ("b" ++ SCon{Chr{10}, SNil{}} ++ "c"))
+   == SCon{Chr{27}, SNil{}} ++ "[38;2;10;20;30m" ++ SCon{Chr{27}, SNil{}} ++ "[38;2;200;100;0ma" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{27}, SNil{}} ++ "[38;2;10;20;30mb" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[38;2;10;20;30mc" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+law paint_nest_inner_newline:
+  {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.plain()), ("a" ++ SCon{Chr{10}, SNil{}} ++ "b"))) ++ ("c"))
+   == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1ma" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1mb" ++ SCon{Chr{27}, SNil{}} ++ "[22mc" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}

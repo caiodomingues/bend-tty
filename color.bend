@@ -794,6 +794,301 @@ def Color.show(c: Color) -> String:
     case Color.Rgb{r, g, b}:
       "rgb " ++ U32.show(r) ++ " " ++ U32.show(g) ++ " " ++ U32.show(b)
 
+# Styles
+# ------
+# A Style is a foreground, a background and the modifiers; Color.Default
+# means "not set". Painting is chalk's applyStyle, with the style's parts
+# as chalk's chain of stylers in this order: fg, bg, bold, dim, italic,
+# underline, inverse, hidden, strike. Each part has its own closing code
+# (39, 49, 22, 22, 23, 24, 27, 28, 29), so a string painted inside
+# another one closes only what it opened, and the outer style is reopened
+# after every one of its closing codes found inside.
+
+type Style is Data:
+  Style{fg: Color, bg: Color, bold: Bool, dim: Bool, italic: Bool, underline: Bool, inverse: Bool, hidden: Bool, strike: Bool}
+
+def Style.plain() -> Style:
+  Style{Color.Default{}, Color.Default{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}}
+
+def Style.fg(c: Color, st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{c, b, x1, x2, x3, x4, x5, x6, x7}
+
+def Style.bg(c: Color, st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, c, x1, x2, x3, x4, x5, x6, x7}
+
+def Style.bold(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, True{}, x2, x3, x4, x5, x6, x7}
+
+def Style.dim(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, x1, True{}, x3, x4, x5, x6, x7}
+
+def Style.italic(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, x1, x2, True{}, x4, x5, x6, x7}
+
+def Style.underline(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, x1, x2, x3, True{}, x5, x6, x7}
+
+def Style.inverse(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, x1, x2, x3, x4, True{}, x6, x7}
+
+def Style.hidden(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, x1, x2, x3, x4, x5, True{}, x7}
+
+def Style.strike(st: Style) -> Style:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Style{f, b, x1, x2, x3, x4, x5, x6, True{}}
+
+# one part of a style at a level: its opening and closing escapes
+type Sty is Data:
+  Sty{open: String, close: String}
+
+def Kit.add(on: Bool, open: String, close: String, rest: List<&2, Sty>) -> List<&2, Sty>:
+  match on:
+    case True{}:
+      Sty{open, close} <> rest
+    case False{}:
+      rest
+
+def Kit.color(+l: Level, c: Color, +bg: Bool, rest: List<&2, Sty>) -> List<&2, Sty>:
+  match c:
+    case Color.Default{}:
+      rest
+    case other:
+      Sty{Color.paint(l, other, bg), Color.close(l, bg)} <> rest
+
+def Kit.parts(+l: Level, st: Style) -> List<&2, Sty>:
+  match st:
+    case Style{f, b, x1, x2, x3, x4, x5, x6, x7}:
+      Kit.color(l, f, False{}, Kit.color(l, b, True{},
+        Kit.add(x1, Sgr("1"), Sgr("22"), Kit.add(x2, Sgr("2"), Sgr("22"), Kit.add(x3, Sgr("3"), Sgr("23"),
+        Kit.add(x4, Sgr("4"), Sgr("24"), Kit.add(x5, Sgr("7"), Sgr("27"), Kit.add(x6, Sgr("8"), Sgr("28"),
+        Kit.add(x7, Sgr("9"), Sgr("29"), Nil{})))))))))
+
+# chalk's openAll and closeAll: the opens in order, the closes reversed
+def Kit.opens(ps: List<&2, Sty>) -> String:
+  match ps:
+    case Nil{}:
+      ""
+    case Sty{o, c} <> t:
+      o ++ Kit.opens(t)
+
+def Kit.closes(ps: List<&2, Sty>) -> String:
+  match ps:
+    case Nil{}:
+      ""
+    case Sty{o, c} <> t:
+      Kit.closes(t) ++ c
+
+# the opens of every part that the escape q closes, in order: what
+# chalk's replacement of each part's close by close + open leaves after q
+def Kit.reopen.pick(c: Bool, o: String, rest: String) -> String:
+  match c:
+    case True{}:
+      o ++ rest
+    case False{}:
+      rest
+
+def Kit.reopen(ps: List<&2, Sty>, +q: String) -> String:
+  match ps:
+    case Nil{}:
+      ""
+    case Sty{o, c} <> t:
+      Kit.reopen.pick(String.eq(c, q), o, Kit.reopen(t, q))
+
+type Kit is Data:
+  Kit{parts: List<&2, Sty>, open: String, close: String}
+
+def Kit.made(+ps: List<&2, Sty>) -> Kit:
+  Kit{ps, Kit.opens(ps), Kit.closes(ps)}
+
+def Kit.of(+l: Level, st: Style) -> Kit:
+  Kit.made(Kit.parts(l, st))
+
+# The string, cut into what painting acts on: a character, a line break
+# (\n, or \r\n as one), or a complete escape sequence (ESC [ .. final).
+# One pass over the characters, with the sequence in progress as the
+# state; the output and the next state are each a non-recursive function
+# of the state and the character, so the walk is structural.
+
+type Pt is Data:
+  Pt.Ch{c: U32}
+  Pt.Brk{crlf: Bool}
+  Pt.Seq{s: String}
+
+type Ps is Data:
+  Ps.Plain{}
+  Ps.Cr{}                  # a \r, which a \n may follow
+  Ps.Esc{}                 # an ESC
+  Ps.Csi{acc: String}      # ESC [ and its bytes so far, reversed
+
+def Pt.plain.lf(+c: U32, lf: Bool) -> List<&2, Pt>:
+  match lf:
+    case True{}:
+      [Pt.Brk{False{}}]
+    case False{}:
+      [Pt.Ch{c}]
+
+def Pt.plain.held(+c: U32, held: Bool) -> List<&2, Pt>:
+  match held:
+    case True{}:
+      Nil{}
+    case False{}:
+      Pt.plain.lf(c, U32.is_eq(c, 10))
+
+# ESC and \r wait for what follows them
+def Pt.plain.out(+c: U32) -> List<&2, Pt>:
+  Pt.plain.held(c, Bool.or(U32.is_eq(c, 27), U32.is_eq(c, 13)))
+
+def Pt.plain.next(+c: U32) -> Ps:
+  Bool.pick(Ps, U32.is_eq(c, 27), Ps.Esc{}, Bool.pick(Ps, U32.is_eq(c, 13), Ps.Cr{}, Ps.Plain{}))
+
+def Pt.cr.out(+c: U32, lf: Bool) -> List<&2, Pt>:
+  match lf:
+    case True{}:
+      [Pt.Brk{True{}}]
+    case False{}:
+      Pt.Ch{13} <> Pt.plain.out(c)
+
+def Pt.esc.out(+c: U32, csi: Bool) -> List<&2, Pt>:
+  match csi:
+    case True{}:
+      Nil{}
+    case False{}:
+      Pt.Ch{27} <> Pt.plain.out(c)
+
+def Pt.csi.out(acc: String, +c: U32, mid: Bool, fin: Bool) -> List<&2, Pt>:
+  match mid fin:
+    case True{} _:
+      Nil{}
+    case False{} True{}:
+      [Pt.Seq{String.reverse(SCon{Chr{c}, acc})}]
+    case False{} False{}:
+      Pt.Seq{String.reverse(acc)} <> Pt.plain.out(c)
+
+def Pt.csi.mid(+c: U32) -> Bool:
+  Bool.and(U32.is_ge(c, 32), U32.is_le(c, 63))
+
+def Pt.csi.fin(+c: U32) -> Bool:
+  Bool.and(U32.is_ge(c, 64), U32.is_le(c, 126))
+
+def Pt.out(st: Ps, +c: U32) -> List<&2, Pt>:
+  match st:
+    case Ps.Plain{}:
+      Pt.plain.out(c)
+    case Ps.Cr{}:
+      Pt.cr.out(c, U32.is_eq(c, 10))
+    case Ps.Esc{}:
+      Pt.esc.out(c, U32.is_eq(c, 91))
+    case Ps.Csi{acc}:
+      Pt.csi.out(acc, c, Pt.csi.mid(c), Pt.csi.fin(c))
+
+def Pt.csi.next(acc: String, +c: U32, mid: Bool, fin: Bool) -> Ps:
+  match mid fin:
+    case True{} _:
+      Ps.Csi{SCon{Chr{c}, acc}}
+    case False{} True{}:
+      Ps.Plain{}
+    case False{} False{}:
+      Pt.plain.next(c)
+
+def Pt.next(st: Ps, +c: U32) -> Ps:
+  match st:
+    case Ps.Plain{}:
+      Pt.plain.next(c)
+    case Ps.Cr{}:
+      Bool.pick(Ps, U32.is_eq(c, 10), Ps.Plain{}, Pt.plain.next(c))
+    case Ps.Esc{}:
+      Bool.pick(Ps, U32.is_eq(c, 91), Ps.Csi{SCon{Chr{91}, SCon{Chr{27}, SNil{}}}}, Pt.plain.next(c))
+    case Ps.Csi{acc}:
+      Pt.csi.next(acc, c, Pt.csi.mid(c), Pt.csi.fin(c))
+
+def Pt.flush(st: Ps) -> List<&2, Pt>:
+  match st:
+    case Ps.Plain{}:
+      Nil{}
+    case Ps.Cr{}:
+      [Pt.Ch{13}]
+    case Ps.Esc{}:
+      [Pt.Ch{27}]
+    case Ps.Csi{acc}:
+      [Pt.Seq{String.reverse(acc)}]
+
+def Pt.go(s: String, +st: Ps) -> List<&2, Pt>:
+  match s:
+    case SNil{}:
+      Pt.flush(st)
+    case SCon{Chr{+c}, t}:
+      List.append(&2, Pt, Pt.out(st, c), Pt.go(t, Pt.next(st, c)))
+
+def Pt.of(s: String) -> List<&2, Pt>:
+  Pt.go(s, Ps.Plain{})
+
+def Kit.parts.of(k: Kit) -> List<&2, Sty>:
+  match k:
+    case Kit{ps, o, c}:
+      ps
+
+def Kit.open(k: Kit) -> String:
+  match k:
+    case Kit{ps, o, c}:
+      o
+
+def Kit.close(k: Kit) -> String:
+  match k:
+    case Kit{ps, o, c}:
+      c
+
+def Paint.brk(crlf: Bool) -> String:
+  match crlf:
+    case True{}:
+      SCon{Chr{13}, SCon{Chr{10}, SNil{}}}
+    case False{}:
+      SCon{Chr{10}, SNil{}}
+
+def Paint.go(ts: List<&2, Pt>, +k: Kit) -> String:
+  match ts:
+    case Nil{}:
+      ""
+    case Pt.Ch{c} <> t:
+      SCon{Chr{c}, Paint.go(t, k)}
+    case Pt.Brk{crlf} <> t:
+      Kit.close(k) ++ Paint.brk(crlf) ++ Kit.open(k) ++ Paint.go(t, k)
+    case Pt.Seq{+q} <> t:
+      q ++ Kit.reopen(Kit.parts.of(k), q) ++ Paint.go(t, k)
+
+def Paint.run(+k: Kit, s: String) -> String:
+  match s:
+    case SNil{}:
+      SNil{}
+    case SCon{+h, +t}:
+      Kit.open(k) ++ Paint.go(Pt.of(SCon{h, t}), k) ++ Kit.close(k)
+
+# s painted in st as the level shows it: at Level.None, and for "", s
+# itself, so nothing styled sends an escape to a pipe
+def Style.paint(l: Level, st: Style, s: String) -> String:
+  match l:
+    case Level.None{}:
+      s
+    case other:
+      Paint.run(Kit.of(other, st), s)
+
 # Samples
 # -------
 
@@ -807,4 +1102,5 @@ def main() -> List<&2, String>:
    Level.show(Level.detect(Facts{True{}, None{}, [Var.set("TERM", "xterm-256color"), Var.set("NO_COLOR", "1")]})),
    Color.show(Color.at(Level.Ansi256{}, Color.hex("#ff8800"))),
    Color.show(Color.at(Level.Basic{}, Color.hex("#ff8800"))),
-   Color.show(Color.at(Level.Basic{}, Color.Ansi256{196}))]
+   Color.show(Color.at(Level.Basic{}, Color.Ansi256{196})),
+   Style.paint(Level.Basic{}, Style.bold(Style.fg(Color.red(), Style.plain())), "a" ++ Style.paint(Level.Basic{}, Style.fg(Color.blue(), Style.plain()), "b") ++ "c\nd")]
