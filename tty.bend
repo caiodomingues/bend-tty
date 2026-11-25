@@ -54,6 +54,85 @@ def Tty.bold() -> String:
 def Tty.reset() -> String:
   Tty.esc() ++ "0m"
 
+# Inline
+# ------
+# What a program drawing in place, below the prompt instead of on the
+# alternate screen, needs: move by rows, erase what it drew, keep a
+# frame from flickering. A count of 0 moves nothing (CSI 0 A would move
+# one row).
+
+def Tty.move(+n: U32, +k: String) -> String:
+  Bool.pick(String, U32.is_eq(n, 0), "", Tty.esc() ++ U32.show(n) ++ k)
+
+# the cursor n rows up, or down, in its column
+def Tty.up(+n: U32) -> String:
+  Tty.move(n, "A")
+
+def Tty.down(+n: U32) -> String:
+  Tty.move(n, "B")
+
+# the cursor to column x of its row, from 1
+def Tty.column(x: U32) -> String:
+  Tty.esc() ++ U32.show(x) ++ "G"
+
+# erase the cursor's row; erase from the cursor to the end of the screen
+def Tty.erase_line() -> String:
+  Tty.esc() ++ "2K"
+
+def Tty.erase_down() -> String:
+  Tty.esc() ++ "J"
+
+# erase the n rows ending at the cursor's, leaving the cursor at the
+# start of the top one: what an inline frame of n rows clears before it
+# is drawn again (ansi-escapes' eraseLines)
+def Tty.erase_lines.go(n: Nat) -> String:
+  match n:
+    case 0n:
+      ""
+    case 1n+0n:
+      Tty.erase_line()
+    case 1n+p:
+      Tty.erase_line() ++ Tty.up(1) ++ Tty.erase_lines.go(p)
+
+def Tty.erase_lines(+n: U32) -> String:
+  Bool.pick(String, U32.is_eq(n, 0), "", Tty.erase_lines.go(U32.to_nat(n)) ++ Tty.column(1))
+
+# save and restore the cursor's position (DECSC and DECRC, ESC 7 and
+# ESC 8, which more terminals take than CSI s and CSI u)
+def Tty.save() -> String:
+  SCon{Chr{27}, "7"}
+
+def Tty.restore() -> String:
+  SCon{Chr{27}, "8"}
+
+# synchronized output (DEC mode 2026): a terminal that knows it shows
+# what is written between on and off at once, so a frame never tears;
+# one that does not ignores both
+def Tty.sync(on: Bool) -> String:
+  match on:
+    case True{}:
+      Tty.esc() ++ "?2026h"
+    case False{}:
+      Tty.esc() ++ "?2026l"
+
+# an OSC 8 hyperlink: text that opens url where the terminal supports it.
+# Off, it is the text with the url after it in parentheses, or the url
+# alone when the text is the url, so a pipe or an old terminal still
+# shows where it goes
+def Tty.link.plain(+url: String, text: String, same: Bool) -> String:
+  match same:
+    case True{}:
+      url
+    case False{}:
+      text ++ " (" ++ url ++ ")"
+
+def Tty.link(on: Bool, +url: String, +text: String) -> String:
+  match on:
+    case True{}:
+      SCon{Chr{27}, "]8;;"} ++ url ++ SCon{Chr{27}, "\\"} ++ text ++ SCon{Chr{27}, "]8;;"} ++ SCon{Chr{27}, "\\"}
+    case False{}:
+      Tty.link.plain(url, text, String.eq(text, url))
+
 # Keys
 # ----
 

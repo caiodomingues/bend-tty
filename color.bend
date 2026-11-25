@@ -27,6 +27,13 @@ def Level.show(l: Level) -> String:
     case Level.TrueColor{}:
       "truecolor"
 
+def Level.is_none(l: Level) -> Bool:
+  match l:
+    case Level.None{}:
+      True{}
+    case _:
+      False{}
+
 # Facts
 # -----
 
