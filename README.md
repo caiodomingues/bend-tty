@@ -142,9 +142,11 @@ plain terminals and pipes, `TERM` from `dumb` to `xterm-kitty`, every
 `FORCE_COLOR` shape (`0`, `false`, `true`, empty, `007`, `9`, junk), the CI
 providers, TeamCity versions, iTerm and Apple Terminal, `NO_COLOR` with and
 without a force, and the program's overrides. Each expected level is the
-one supports-color 11.0.0's source gives for those facts, worked out by
-hand from `index.js` at `4963567`; the four rows where bend-tty differs on
-purpose say so beside the law. They are closed claims too, so their proofs
+one supports-color 11.0.0 (`index.js` at `4963567`) gives for those facts:
+worked out by hand from its source, then confirmed by running it under bun
+1.4.5 on every row (the program's override as its argv flag), with no
+difference. The four rows where bend-tty differs on purpose give
+supports-color's answer beside the law. They are closed claims too, so their proofs
 are `{==}`.
 
 `Color.at` has five laws over every level and colour (`color_basic`,
