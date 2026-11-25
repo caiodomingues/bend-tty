@@ -302,3 +302,80 @@ law detect_flag_16m_force_0:
 # TERM=xterm-256color NO_COLOR=1, on a terminal, the program passing --color: Ansi256
 law detect_flag_color_no_color:
   {C.Level.detect(C.Facts{True{}, Some{C.Level.Basic{}}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("NO_COLOR", "1")]}) == C.Level.Ansi256{} : C.Level}
+
+# Colours
+# -------
+# Color.at, a colour as a level shows it. The first five laws hold for
+# every level and colour; the samples after them are ansi-styles 7.0.0's
+# answers (rgbToAnsi256, ansi256ToAnsi, hexToRgb at 8cf247a), and the
+# conversions agree with a port of those functions on all 256 palette
+# entries and on 4096 RGB colours.
+
+# LAW: a basic colour is never changed, at any level
+law color_basic:
+  for l: C.Level
+  for n: U32
+  {C.Color.at(l, C.Color.Basic{n}) == C.Color.Basic{n} : C.Color}
+
+# LAW: nor is the terminal's default colour
+law color_default:
+  for l: C.Level
+  {C.Color.at(l, C.Color.Default{}) == C.Color.Default{} : C.Color}
+
+# LAW: truecolor shows every colour as it is
+law color_truecolor:
+  for c: C.Color
+  {C.Color.at(C.Level.TrueColor{}, c) == c : C.Color}
+
+# LAW: a 256 colour is unchanged at 256
+law color_256:
+  for n: U32
+  {C.Color.at(C.Level.Ansi256{}, C.Color.Ansi256{n}) == C.Color.Ansi256{n} : C.Color}
+
+# LAW: a colour already at the level is unchanged: converting twice is
+# converting once
+law color_idempotent:
+  for l: C.Level
+  for c: C.Color
+  {C.Color.at(l, C.Color.at(l, c)) == C.Color.at(l, c) : C.Color}
+
+# LAW: at Level.None no colour writes an escape
+law color_none:
+  for c: C.Color
+  for bg: Bool
+  {C.Color.paint(C.Level.None{}, c, bg) ++ C.Color.close(C.Level.None{}, bg) == "" : String}
+
+# red, grey 128 and orange to the 256 palette
+law color_rgb_256:
+  {[C.Color.at(C.Level.Ansi256{}, C.Color.Rgb{255, 0, 0}), C.Color.at(C.Level.Ansi256{}, C.Color.Rgb{128, 128, 128}),
+    C.Color.at(C.Level.Ansi256{}, C.Color.Rgb{255, 136, 0}), C.Color.at(C.Level.Ansi256{}, C.Color.Rgb{0, 0, 0}),
+    C.Color.at(C.Level.Ansi256{}, C.Color.Rgb{255, 255, 255})]
+   == [C.Color.Ansi256{196}, C.Color.Ansi256{244}, C.Color.Ansi256{214}, C.Color.Ansi256{16}, C.Color.Ansi256{231}] : List<&2, C.Color>}
+
+# the palette to the 16: 196 bright red, 214 bright yellow, 88 black (no
+# channel past 2 of 5), grey 244 white and 240 black, 21 bright blue
+law color_256_16:
+  {[C.Color.at(C.Level.Basic{}, C.Color.Ansi256{196}), C.Color.at(C.Level.Basic{}, C.Color.Ansi256{214}),
+    C.Color.at(C.Level.Basic{}, C.Color.Ansi256{88}), C.Color.at(C.Level.Basic{}, C.Color.Ansi256{244}),
+    C.Color.at(C.Level.Basic{}, C.Color.Ansi256{240}), C.Color.at(C.Level.Basic{}, C.Color.Ansi256{21}),
+    C.Color.at(C.Level.Basic{}, C.Color.Ansi256{3})]
+   == [C.Color.Basic{9}, C.Color.Basic{11}, C.Color.Basic{0}, C.Color.Basic{7}, C.Color.Basic{0}, C.Color.Basic{12}, C.Color.Basic{3}] : List<&2, C.Color>}
+
+# RGB at 16 colours goes through the palette: orange is bright yellow
+law color_rgb_16:
+  {C.Color.at(C.Level.Basic{}, C.Color.Rgb{255, 136, 0}) == C.Color.Basic{11} : C.Color}
+
+# hex: six digits, three doubled, either case, the leftmost run that
+# fits (#12345 has no six, so 123), black when there is none
+law color_hex:
+  {[C.Color.hex("#ff8800"), C.Color.hex("f80"), C.Color.hex("#FF8800"), C.Color.hex("#12345"), C.Color.hex("zz")]
+   == [C.Color.Rgb{255, 136, 0}, C.Color.Rgb{255, 136, 0}, C.Color.Rgb{255, 136, 0}, C.Color.Rgb{17, 34, 51}, C.Color.Rgb{0, 0, 0}] : List<&2, C.Color>}
+
+# the escapes: 31 red, 101 bright red behind, 39 the default, 38;5;n
+# and 38;2;r;g;b, each downsampled to the level first
+law color_escapes:
+  {[C.Color.fg(C.Level.Basic{}, C.Color.red()), C.Color.bg(C.Level.Basic{}, C.Color.bright(C.Color.red())),
+    C.Color.fg(C.Level.TrueColor{}, C.Color.Default{}), C.Color.fg(C.Level.Ansi256{}, C.Color.Rgb{255, 0, 0}),
+    C.Color.fg(C.Level.TrueColor{}, C.Color.Rgb{255, 136, 0}), C.Color.bg(C.Level.Basic{}, C.Color.Ansi256{196})]
+   == [SCon{Chr{27}, "[31m"}, SCon{Chr{27}, "[101m"}, SCon{Chr{27}, "[39m"}, SCon{Chr{27}, "[38;5;196m"},
+       SCon{Chr{27}, "[38;2;255;136;0m"}, SCon{Chr{27}, "[101m"}] : List<&2, String>}

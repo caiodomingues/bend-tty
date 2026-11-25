@@ -163,6 +163,9 @@ Each point was agreed with the owner before the code was written.
   colour by HSLuv distance, which disagree with each other and need float
   colour science; bend-tty follows ansi-styles so that a level-2 or level-1
   terminal shows what chalk would show.
+- **RGB channels are clamped.** ansi-styles takes any number and writes
+  `38;2;300;0;0` as given; bend-tty reads a channel above 255 as 255, in the
+  escape and in the conversions, so every colour it writes is valid.
 - **One level, not two.** colorprofile separates "no colour but bold" from
   "no escapes at all". bend-tty keeps supports-color's single scale, and at
   level none nothing is styled, so no escape reaches a pipe.
