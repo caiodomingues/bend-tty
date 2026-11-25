@@ -8,7 +8,11 @@ use its C and JS effect API, which has no ABI promise across releases.
 
 The pure files are `tty.bend` (the escapes, `Key` and the decoder) and
 `color.bend` (what a terminal can show: `Level` and `Level.detect`, and
-`Color` and its escapes at each level, `Style` and `Style.paint`);
+`Color` and its escapes at each level, `Style` and `Style.paint`),
+`text.bend` (strip, width, slice, wrap and truncate by display columns)
+and `unicode.bend` (the character classes text.bend measures with,
+generated from the Unicode Character Database 18.0.0 by
+`tools/gen_unicode.py`);
 `tty_io.bend` holds the effects. A proof may import no foreign code, so the
 split keeps `PROOF.bend` on the pure files; a program imports each file it
 names (Bend does not re-export imports).
@@ -100,6 +104,15 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 | `Style` | a foreground, a background (`Color.Default` is unset) and bold, dim, italic, underline, inverse, hidden, strike; `Style.plain()`, then `Style.fg(c, st)`, `Style.bg(c, st)`, `Style.bold(st)`, `Style.dim(st)`, `Style.italic(st)`, `Style.underline(st)`, `Style.inverse(st)`, `Style.hidden(st)`, `Style.strike(st)` |
 | `Style.paint(l, st, s)` | `Level -> Style -> String -> String`: `s` in `st` as chalk paints it at level `l`. Each part has its own close (39, 49, 22, 22, 23, 24, 27, 28, 29), so a painted string nests in another: after each of the outer style's closes found inside, the outer part is opened again; each line break is wrapped in the closes and the opens. At `Level.None`, and for `""`, the answer is `s` itself |
 
+| pure (`text.bend`) | what |
+| --- | --- |
+| `Ansi.strip(s)` | `s` without its escapes: CSI, OSC (BEL or `ESC \`), DCS, SOS, PM and APC strings, and the short escapes, as [strip-ansi](https://github.com/chalk/strip-ansi) matches them in 7-bit form |
+| `Ansi.width(s)` | the columns `s` takes, as [string-width](https://github.com/sindresorhus/string-width) counts them: escapes and zero-width characters 0, East Asian Wide and Fullwidth 2, an emoji ZWJ sequence, a flag, an emoji with its skin tone or a keycap one cluster of 2, VS16 and VS15 switching an emoji's presentation |
+| `Ansi.slice(s, a, b)` | columns `a` up to `b`, as [slice-ansi](https://github.com/chalk/slice-ansi): the styles and link in force at `a` opened first, all in force at the end closed, a wide character across either edge left out |
+| `Ansi.wrap(s, cols, hard)` | `s` wrapped to `cols`, as [wrap-ansi](https://github.com/chalk/wrap-ansi): words to the next row, tabs to 8, trailing spaces trimmed, a word wider than `cols` alone on its row or, with `hard`, cut; every style and link in force at a line break closed before it and opened after it |
+| `Ansi.truncate(s, cols, cut)` | `s` in `cols` columns with `…` at `Cut.End`, `Cut.Start` or `Cut.Middle`, as [cli-truncate](https://github.com/sindresorhus/cli-truncate); the ellipsis takes the style of the text beside it |
+| `Ansi.widest(s)` | the width of the widest line of `s` |
+
 `Level.detect` answers what supports-color 11.0.0 answers for the same
 stream and environment, with three exceptions, each on purpose
 (`docs/grounding.md` has the comparison with the Node and Go libraries):
@@ -171,6 +184,20 @@ breaks (`
 `, trailing ones included) and every colour model
 at levels 1 to 3.
 
+The text laws pin `text.bend` to the libraries it follows: 91 samples
+(30 widths, 13 strips, 15 slices, 20 wraps, 13 truncations) on ASCII,
+accented letters, CJK, fullwidth forms, emoji (ZWJ sequences, flags,
+skin tones, keycaps, VS15 and VS16), combining marks, Hangul jamo, Thai
+and Devanagari, styles and links. Each is the answer string-width 9.0.0,
+strip-ansi 7.2.0, slice-ansi 10.0.1, wrap-ansi 10.0.2 or cli-truncate
+6.2.0 gave for the same string under bun 1.4.5, but one: wrap-ansi
+reopens a link with BEL after a break, and bend-tty keeps the terminator
+the link was written with (`r_link` says so). `text_styled_width` and
+`text_styled_strip` say that painting a string changes neither its width
+nor, stripped, its text; `text_wrap_fits` that wrapped lines are never
+wider than the width, but for a single word longer than it in a soft
+wrap; `text_truncate_zero` holds for every string.
+
 ## Lanes
 
 - **Native** (`bend x.bend -o x`): Linux and macOS. `tty_raw.c` is termios,
@@ -193,7 +220,10 @@ at levels 1 to 3.
   `FORCE_COLOR=3` (truecolor on both) and GitHub Actions (truecolor on a
   pty, none piped), each lane answering the same. `demos/colors.bend` writes
   the same bytes on both lanes, piped (no ESC byte in it) and under a pty
-  with truecolor, every colour and style at every level.
+  with truecolor, every colour and style at every level. The 91 text
+  samples give the same answers natively and under bun, and
+  `demos/text.bend` writes the same bytes on both, piped (no ESC byte, also
+  with `NO_COLOR=1`) and under a pty.
 - Windows is not a Bend host and was not tried; `Tty.read` needs libc's
   `select` and `read` through `bun:ffi`.
 
@@ -252,12 +282,14 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
     bend color.bend                      # Level.detect on sample environments
     bend demos/level.bend                # this terminal's level; | cat for a pipe
     bend demos/colors.bend               # every colour and style at every level; | cat shows the escapes
+    bend demos/text.bend                 # width, slice, wrap and truncate on CJK and emoji
+    python3 tools/gen_unicode.py <ucd> > unicode.bend   # regenerate the tables from Unicode's files
     bend PROOF.bend                      # ALL PROOFS CHECK
     bend demos/keys.bend                 # interactive; or piped
     bend demos/counter.bend -o counter && ./counter
     bend demos/counter.bend -o counter.js && bun counter.js
 
-`bend LAWS.bend` reports its 109 laws as TODOs (they are proven in
+`bend LAWS.bend` reports its 204 laws as TODOs (they are proven in
 `PROOF.bend`). `--check-only` on `tty_io.bend` or a demo prints `SOME PROOFS
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run

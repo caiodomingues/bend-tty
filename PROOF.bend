@@ -4,6 +4,7 @@
 import Base
 import ./tty.bend as T
 import ./color.bend as C
+import ./text.bend as X
 import ./LAWS.bend as Laws
 
 def Laws.keys_plain():
@@ -395,4 +396,289 @@ def Laws.paint_rgb_true_nest():
   {==}
 
 def Laws.paint_nest_inner_newline():
+  {==}
+
+def Laws.text_truncate_zero(s, c):
+  {==}
+
+def Laws.text_styled_width():
+  {==}
+
+def Laws.text_styled_strip():
+  {==}
+
+def Laws.text_wrap_fits():
+  {==}
+
+def Laws.w_ascii():
+  {==}
+
+def Laws.w_cjk():
+  {==}
+
+def Laws.w_decomposed():
+  {==}
+
+def Laws.w_thumbs_tone():
+  {==}
+
+def Laws.w_heart_vs16():
+  {==}
+
+def Laws.w_heart():
+  {==}
+
+def Laws.w_flag():
+  {==}
+
+def Laws.w_lone_ri():
+  {==}
+
+def Laws.w_family():
+  {==}
+
+def Laws.w_hangul_jamo():
+  {==}
+
+def Laws.w_hangul():
+  {==}
+
+def Laws.w_fullwidth():
+  {==}
+
+def Laws.w_watch_vs15():
+  {==}
+
+def Laws.w_watch():
+  {==}
+
+def Laws.w_keycap():
+  {==}
+
+def Laws.w_styled():
+  {==}
+
+def Laws.w_link():
+  {==}
+
+def Laws.w_tab():
+  {==}
+
+def Laws.w_cafe():
+  {==}
+
+def Laws.w_japanese():
+  {==}
+
+def Laws.w_halfwidth_dakuten():
+  {==}
+
+def Laws.w_devanagari():
+  {==}
+
+def Laws.w_stray_tone():
+  {==}
+
+def Laws.w_zwsp():
+  {==}
+
+def Laws.w_mixed():
+  {==}
+
+def Laws.w_empty():
+  {==}
+
+def Laws.w_rocket():
+  {==}
+
+def Laws.w_ellipsis():
+  {==}
+
+def Laws.w_box():
+  {==}
+
+def Laws.w_thai():
+  {==}
+
+def Laws.s_sgr():
+  {==}
+
+def Laws.s_osc_title():
+  {==}
+
+def Laws.s_save_restore():
+  {==}
+
+def Laws.s_charset():
+  {==}
+
+def Laws.s_private_csi():
+  {==}
+
+def Laws.s_dcs():
+  {==}
+
+def Laws.s_link_st():
+  {==}
+
+def Laws.s_link_bel():
+  {==}
+
+def Laws.s_open_osc():
+  {==}
+
+def Laws.s_open_dcs():
+  {==}
+
+def Laws.s_lone_esc():
+  {==}
+
+def Laws.s_esc_letter():
+  {==}
+
+def Laws.s_csi_bad():
+  {==}
+
+def Laws.l_plain():
+  {==}
+
+def Laws.l_styled_in():
+  {==}
+
+def Laws.l_wide_end():
+  {==}
+
+def Laws.l_wide_start():
+  {==}
+
+def Laws.l_wide_whole():
+  {==}
+
+def Laws.l_styled_all():
+  {==}
+
+def Laws.l_pending_open():
+  {==}
+
+def Laws.l_nested():
+  {==}
+
+def Laws.l_link():
+  {==}
+
+def Laws.l_emoji():
+  {==}
+
+def Laws.l_past():
+  {==}
+
+def Laws.l_empty_range():
+  {==}
+
+def Laws.l_bold_dim():
+  {==}
+
+def Laws.l_tone():
+  {==}
+
+def Laws.l_mark():
+  {==}
+
+def Laws.r_words():
+  {==}
+
+def Laws.r_styled():
+  {==}
+
+def Laws.r_hard():
+  {==}
+
+def Laws.r_soft_long():
+  {==}
+
+def Laws.r_tab():
+  {==}
+
+def Laws.r_cjk():
+  {==}
+
+def Laws.r_cjk_soft():
+  {==}
+
+def Laws.r_spaces():
+  {==}
+
+def Laws.r_leading():
+  {==}
+
+def Laws.r_trailing():
+  {==}
+
+def Laws.r_crlf():
+  {==}
+
+def Laws.r_empty_lines():
+  {==}
+
+def Laws.r_blank_line():
+  {==}
+
+def Laws.r_nested():
+  {==}
+
+def Laws.r_link():
+  {==}
+
+def Laws.r_emoji():
+  {==}
+
+def Laws.r_exact():
+  {==}
+
+def Laws.r_hard_exact():
+  {==}
+
+def Laws.r_close_at_break():
+  {==}
+
+def Laws.r_bg():
+  {==}
+
+def Laws.t_end():
+  {==}
+
+def Laws.t_start():
+  {==}
+
+def Laws.t_middle():
+  {==}
+
+def Laws.t_styled_end():
+  {==}
+
+def Laws.t_styled_start():
+  {==}
+
+def Laws.t_cjk_end():
+  {==}
+
+def Laws.t_cjk_start():
+  {==}
+
+def Laws.t_fits():
+  {==}
+
+def Laws.t_one():
+  {==}
+
+def Laws.t_zero():
+  {==}
+
+def Laws.t_middle_even():
+  {==}
+
+def Laws.t_emoji_end():
+  {==}
+
+def Laws.t_two():
   {==}
