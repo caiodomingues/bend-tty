@@ -7,7 +7,8 @@ needs, in pure Bend with its laws proven. Requires Bend 2.0.40: the effects
 use its C and JS effect API, which has no ABI promise across releases.
 
 The pure files are `tty.bend` (the escapes, `Key` and the decoder) and
-`color.bend` (what a terminal can show: `Level` and `Level.detect`);
+`color.bend` (what a terminal can show: `Level` and `Level.detect`, and
+`Color` and its escapes at each level);
 `tty_io.bend` holds the effects. A proof may import no foreign code, so the
 split keeps `PROOF.bend` on the pure files; a program imports each file it
 names (Bend does not re-export imports).
@@ -92,6 +93,11 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 | `Facts.forced(f, l)`, `Facts.names()` | the facts with an override; the variables `Level.detect` reads |
 | `Level.detect(f)` | `Facts -> Level`: [supports-color](https://github.com/chalk/supports-color)'s rules in its order, with `NO_COLOR` read and `COLORTERM=24bit` as truecolor (see below) |
 
+| `Color` | `Color.Default`, `Color.Basic{n}` (0..7, then 8..15 bright), `Color.Ansi256{n}`, `Color.Rgb{r, g, b}` (each 0..255, more reads as 255); `Color.red()` .. `Color.white()`, `Color.gray()`, `Color.bright(c)`, `Color.rgb(r, g, b)`, `Color.hex(s)` (`"#ff8800"`, `"f80"`) |
+| `Color.at(l, c)` | `Level -> Color -> Color`: the colour as the level shows it, as chalk does: RGB to the 256 palette at 256, the palette and RGB to the 16 at 16, nothing changed at truecolor; a basic colour and the default never change |
+| `Color.fg(l, c)`, `Color.bg(l, c)` | the escape that paints the foreground or the background, `c` converted to `l` first; `""` at `Level.None` |
+| `Color.fg_close(l)`, `Color.bg_close(l)` | the default colour back (`ESC [ 39 m`, `ESC [ 49 m`); `""` at `Level.None` |
+
 `Level.detect` answers what supports-color 11.0.0 answers for the same
 stream and environment, with three exceptions, each on purpose
 (`docs/grounding.md` has the comparison with the Node and Go libraries):
@@ -141,6 +147,16 @@ hand from `index.js` at `4963567`; the four rows where bend-tty differs on
 purpose say so beside the law. They are closed claims too, so their proofs
 are `{==}`.
 
+`Color.at` has five laws over every level and colour (`color_basic`,
+`color_default`, `color_truecolor`, `color_256`, and `color_idempotent`:
+a colour already at the level is unchanged), and `color_none` says that at
+`Level.None` no colour writes an escape, open or close. Samples pin the
+conversions and the hex parser to ansi-styles 7.0.0's answers; beyond
+them, `Rgb.to256` and `Ansi.to16` were compared with a port of
+ansi-styles' `rgbToAnsi256` and `ansi256ToAnsi` on all 256 palette entries,
+all 256 greys and 4096 RGB colours, natively and under bun, with no
+difference.
+
 ## Lanes
 
 - **Native** (`bend x.bend -o x`): Linux and macOS. `tty_raw.c` is termios,
@@ -161,7 +177,9 @@ are `{==}`.
   a pty and piped with `TERM=xterm-256color` (256 and none), `NO_COLOR=1`
   (none), `COLORTERM=truecolor` (truecolor), `TERM=dumb` (none),
   `FORCE_COLOR=3` (truecolor on both) and GitHub Actions (truecolor on a
-  pty, none piped), each lane answering the same.
+  pty, none piped), each lane answering the same. `demos/colors.bend` writes
+  the same bytes on both lanes, piped (no ESC byte in it) and under a pty
+  with truecolor.
 - Windows is not a Bend host and was not tried; `Tty.read` needs libc's
   `select` and `read` through `bun:ffi`.
 
@@ -219,12 +237,13 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
     bend tty.bend                        # the decoder on a sample
     bend color.bend                      # Level.detect on sample environments
     bend demos/level.bend                # this terminal's level; | cat for a pipe
+    bend demos/colors.bend               # every colour at every level; | cat shows the escapes
     bend PROOF.bend                      # ALL PROOFS CHECK
     bend demos/keys.bend                 # interactive; or piped
     bend demos/counter.bend -o counter && ./counter
     bend demos/counter.bend -o counter.js && bun counter.js
 
-`bend LAWS.bend` reports its 72 laws as TODOs (they are proven in
+`bend LAWS.bend` reports its 83 laws as TODOs (they are proven in
 `PROOF.bend`). `--check-only` on `tty_io.bend` or a demo prints `SOME PROOFS
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run
