@@ -19,6 +19,14 @@ def Tty.raw(on: Bool) -> IO(Unit):
   import "./effs/tty_raw.c"
   import "./effs/tty_raw.js"
 
+# the program draws in the normal screen, not the alternate one: until
+# off, the exit and SIGTERM, SIGHUP, SIGINT show the cursor and reset
+# the styles even with raw mode off, and no restore leaves the
+# alternate screen (that escape can move the cursor on the normal one)
+def Tty.inline(on: Bool) -> IO(Unit):
+  import "./effs/tty_raw.c"
+  import "./effs/tty_raw.js"
+
 # the terminal's columns and rows; 80 x 24 when unknown
 def Tty.size() -> IO(U32 & U32):
   import "./effs/tty_size.c"

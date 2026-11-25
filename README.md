@@ -112,7 +112,8 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 
 | effect (`tty_io.bend`) | type | host |
 | --- | --- | --- |
-| `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3. Turning it off, at exit or on SIGTERM/SIGHUP/SIGINT, also shows the cursor and leaves the alternate screen (not on a runtime fail-stop); a no-op when stdin is not a terminal |
+| `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3. Turning it off, at exit or (native) on SIGTERM/SIGHUP/SIGINT, also shows the cursor and leaves the alternate screen (not on a runtime fail-stop); a no-op when stdin is not a terminal |
+| `Tty.inline(on)` | `Bool -> IO(Unit)` | the program draws in the normal screen: until off, the exit and (native) SIGTERM/SIGHUP/SIGINT show the cursor and reset the styles even with raw mode off, and no restore leaves the alternate screen, an escape that can move the cursor on the normal one |
 | `Tty.size()` | `IO(U32 & U32)` | columns and rows; 80 x 24 when unknown |
 | `Tty.read(ms, max)` | `U32 -> U32 -> IO(Maybe<&2, List<&2, U32>>)` | the bytes stdin has within `ms`, at most `max` (at least 1): `Some{[]}` on a timeout or when another computation drained the terminal first, `None` at the end of a pipe or on an error. Waits without blocking the other computations |
 | `Tty.isatty(fd)` | `U32 -> IO(Bool)` | is the descriptor a terminal (0 stdin, 1 stdout, 2 stderr); a closed or invalid one is not |
@@ -261,7 +262,12 @@ text, and as wide.
   Verified the same way under bun 1.4.2. node cannot run it: the runtime's
   libc access (`io_sys()`) is `bun:ffi`, so `Tty.read` stops with `Cannot
   find module 'bun:ffi'`. A `-o x.js` build succeeds even when an effect is
-  broken; only running it shows the failure.
+  broken; only running it shows the failure. No signal is hooked on this
+  lane: the runtime's loop never yields to bun's, so a `process.on`
+  signal listener never runs, and registering one would make SIGINT and
+  SIGTERM do nothing (seen with bun 1.4.2: a `Tui.run` ignored SIGTERM).
+  A signal ends a JS program with the terminal as it was; the exit
+  restores it.
 - `color.bend`, `text.bend`, `unicode.bend`, `Tty.isatty` and the inline
   escapes, on Linux (WSL, x86_64) with Bend 2.0.40 and bun 1.4.2, from a
   fresh clone: the proofs; every demo built and run on both lanes, piped
