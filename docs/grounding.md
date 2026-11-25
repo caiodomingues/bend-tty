@@ -156,9 +156,28 @@ Each point was agreed with the owner before the code was written.
 - **No NFC.** wrap-ansi normalises text to NFC first; without the
   composition tables bend-tty wraps the code points as given. A decomposed
   accent still measures right (the mark is 0 wide).
-- **Hyperlinks.** OSC 8 is written with `ESC \` (ST), where wrap-ansi
-  re-emits links with BEL; ST is the standard terminator and BEL is read
-  too. Like wrap-ansi, no C1 (8-bit) introducers are produced or tracked.
+- **Hyperlinks.** A link that wrap or slice opens again is written with
+  the terminator it came with, BEL or `ESC \`, where wrap-ansi always
+  re-emits BEL; its close uses the same one. Like wrap-ansi, no C1 (8-bit)
+  introducers are produced or tracked.
+- **Escapes are 7-bit.** strip and the rest read CSI, OSC, DCS/SOS/PM/APC
+  and the short escapes as ansi-regex does, but not their 8-bit C1 forms
+  nor the Linux console's palette sequences (`ESC ] P` + 7 hex).
+- **Clusters do not cross escapes.** string-width strips escapes before it
+  segments; bend-tty starts a new cluster after an escape, so a joiner
+  (ZWJ, VS16, a skin tone) right after an escape stands alone. Text that
+  puts an escape inside an emoji sequence measures differently.
+- **Slices and cuts follow the clusters above.** slice-ansi cuts by
+  `Intl.Segmenter` graphemes; bend-tty by its clusters, so a spacing mark
+  (Devanagari's vowel signs) can be cut from its consonant, which a
+  grapheme would keep.
+- **Wrap's options.** Only `hard` is offered: `trim` and `wordWrap` stay
+  on, wrap-ansi's defaults. A line counts as blank when it holds only
+  spaces, tabs, line controls or no-break spaces (wrap-ansi uses JS's
+  `trim`, which knows a few more Unicode spaces).
+- **Truncate's options.** Only the position is offered, with `…`:
+  cli-truncate's `space`, `preferTruncationOnSpace` and
+  `truncationCharacter` are not.
 - **Charm's downsampling is not used.** termenv and x/ansi pick the nearest
   colour by HSLuv distance, which disagree with each other and need float
   colour science; bend-tty follows ansi-styles so that a level-2 or level-1

@@ -6,6 +6,7 @@
 import Base
 import ./tty.bend as T
 import ./color.bend as C
+import ./text.bend as X
 
 # LAW: a printable byte is that character
 law keys_plain:
@@ -495,3 +496,310 @@ law paint_rgb_true_nest:
 law paint_nest_inner_newline:
   {C.Style.paint(C.Level.Basic{}, C.Style.fg(C.Color.Basic{1}, C.Style.plain()), (C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.plain()), ("a" ++ SCon{Chr{10}, SNil{}} ++ "b"))) ++ ("c"))
    == SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1ma" ++ SCon{Chr{27}, SNil{}} ++ "[22m" ++ SCon{Chr{27}, SNil{}} ++ "[39m" ++ SCon{Chr{10}, SNil{}} ++ SCon{Chr{27}, SNil{}} ++ "[31m" ++ SCon{Chr{27}, SNil{}} ++ "[1mb" ++ SCon{Chr{27}, SNil{}} ++ "[22mc" ++ SCon{Chr{27}, SNil{}} ++ "[39m" : String}
+
+# Text
+# ----
+# text.bend. The samples are the answers of string-width 9.0.0,
+# strip-ansi 7.2.0, slice-ansi 10.0.1, wrap-ansi 10.0.2 and cli-truncate
+# 6.2.0 (run under bun 1.4.5 on these same strings), except where a law
+# notes it: widths of CJK, emoji (ZWJ sequences, flags, skin tones,
+# keycaps, VS15 and VS16), combining marks and Hangul jamo; escapes of
+# every kind; slices across wide characters and styles; wraps with styles,
+# links, tabs and long words; truncation at each end and the middle.
+
+# LAW: truncating to no columns leaves nothing, whatever the string
+law text_truncate_zero:
+  for s: String
+  for c: X.Cut
+  {X.Ansi.truncate(s, 0, c) == "" : String}
+
+# styling changes neither the width nor, stripped, the text
+law text_styled_width:
+  {[X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([20013, 25991, 32, 97, 98, 99]))), X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]))), X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([101, 769, 769]))), X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([20013, 25991, 32, 97, 98, 99]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([101, 769, 769]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039])))]
+   == [X.Ansi.width(X.S.of([20013, 25991, 32, 97, 98, 99])), X.Ansi.width(X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107])), X.Ansi.width(X.S.of([101, 769, 769])), X.Ansi.width(X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039])), X.Ansi.width(X.S.of([20013, 25991, 32, 97, 98, 99])), X.Ansi.width(X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107])), X.Ansi.width(X.S.of([101, 769, 769])), X.Ansi.width(X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039]))] : List<&2, U32>}
+
+law text_styled_strip:
+  {[X.Ansi.strip(C.Style.paint(C.Level.Ansi256{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([20013, 25991, 32, 97, 98, 99]))), X.Ansi.strip(C.Style.paint(C.Level.Ansi256{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]))), X.Ansi.strip(C.Style.paint(C.Level.Ansi256{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([101, 769, 769]))), X.Ansi.strip(C.Style.paint(C.Level.Ansi256{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039]))), X.Ansi.strip(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([20013, 25991, 32, 97, 98, 99]))), X.Ansi.strip(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]))), X.Ansi.strip(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([101, 769, 769]))), X.Ansi.strip(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039])))]
+   == [X.S.of([20013, 25991, 32, 97, 98, 99]), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]), X.S.of([101, 769, 769]), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039]), X.S.of([20013, 25991, 32, 97, 98, 99]), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]), X.S.of([101, 769, 769]), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039])] : List<&2, String>}
+
+# wrapped lines are never wider than the width, but for a single word
+# longer than it when the wrap is soft, which keeps it whole on its row
+law text_wrap_fits:
+  {[X.Ansi.widest(X.Ansi.wrap(X.S.of([27, 91, 51, 49, 109, 116, 104, 101, 32, 113, 117, 105, 99, 107, 32, 98, 114, 111, 119, 110, 32, 102, 111, 120, 32, 106, 117, 109, 112, 115, 32, 111, 118, 101, 114, 27, 91, 51, 57, 109]), 10, False{})), X.Ansi.widest(X.Ansi.wrap(X.S.of([26085, 26412, 35486, 26085, 26412, 35486, 32, 128512, 128512, 128512]), 5, True{})),
+    X.Ansi.widest(X.Ansi.wrap(X.S.of([115, 117, 112, 101, 114, 99, 97, 108, 105, 102, 114, 97, 103, 105, 108, 105, 115, 116, 105, 99, 32, 101, 120, 112, 105, 97, 108, 105, 100, 111, 99, 105, 111, 117, 115]), 7, True{})), X.Ansi.widest(X.Ansi.wrap(X.S.of([20013, 25991, 20013]), 3, True{})),
+    X.Ansi.widest(X.Ansi.wrap(X.S.of([97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 32, 120, 121]), 5, False{}))]
+   == [10, 4, 7, 2, 12] : List<&2, U32>}
+
+law w_ascii:
+  {X.Ansi.width(X.S.of([97, 98, 99])) == 3 : U32}
+
+law w_cjk:
+  {X.Ansi.width(X.S.of([20013, 25991])) == 4 : U32}
+
+law w_decomposed:
+  {X.Ansi.width(X.S.of([101, 769])) == 1 : U32}
+
+law w_thumbs_tone:
+  {X.Ansi.width(X.S.of([128077, 127997])) == 2 : U32}
+
+law w_heart_vs16:
+  {X.Ansi.width(X.S.of([10084, 65039])) == 2 : U32}
+
+law w_heart:
+  {X.Ansi.width(X.S.of([10084])) == 1 : U32}
+
+law w_flag:
+  {X.Ansi.width(X.S.of([127463, 127479])) == 2 : U32}
+
+law w_lone_ri:
+  {X.Ansi.width(X.S.of([127463])) == 2 : U32}
+
+law w_family:
+  {X.Ansi.width(X.S.of([128104, 8205, 128105, 8205, 128103])) == 2 : U32}
+
+law w_hangul_jamo:
+  {X.Ansi.width(X.S.of([4370, 4449, 4523])) == 2 : U32}
+
+law w_hangul:
+  {X.Ansi.width(X.S.of([54620, 44544])) == 4 : U32}
+
+law w_fullwidth:
+  {X.Ansi.width(X.S.of([65345, 65346])) == 4 : U32}
+
+law w_watch_vs15:
+  {X.Ansi.width(X.S.of([8986, 65038])) == 1 : U32}
+
+law w_watch:
+  {X.Ansi.width(X.S.of([8986])) == 2 : U32}
+
+law w_keycap:
+  {X.Ansi.width(X.S.of([49, 65039, 8419])) == 2 : U32}
+
+law w_styled:
+  {X.Ansi.width(X.S.of([27, 91, 51, 49, 109, 97, 98, 27, 91, 51, 57, 109])) == 2 : U32}
+
+law w_link:
+  {X.Ansi.width(X.S.of([27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 115, 105, 116, 101, 27, 93, 56, 59, 59, 27, 92])) == 4 : U32}
+
+law w_tab:
+  {X.Ansi.width(X.S.of([97, 9, 98])) == 2 : U32}
+
+law w_cafe:
+  {X.Ansi.width(X.S.of([99, 97, 102, 233])) == 4 : U32}
+
+law w_japanese:
+  {X.Ansi.width(X.S.of([26085, 26412, 35486, 12486, 12461, 12473, 12488])) == 14 : U32}
+
+law w_halfwidth_dakuten:
+  {X.Ansi.width(X.S.of([65398, 65438])) == 2 : U32}
+
+law w_devanagari:
+  {X.Ansi.width(X.S.of([2325, 2381, 2359, 2367])) == 3 : U32}
+
+law w_stray_tone:
+  {X.Ansi.width(X.S.of([127997])) == 2 : U32}
+
+law w_zwsp:
+  {X.Ansi.width(X.S.of([97, 8203, 98])) == 2 : U32}
+
+law w_mixed:
+  {X.Ansi.width(X.S.of([97, 20013, 128512, 98])) == 6 : U32}
+
+law w_empty:
+  {X.Ansi.width("") == 0 : U32}
+
+law w_rocket:
+  {X.Ansi.width(X.S.of([128640])) == 2 : U32}
+
+law w_ellipsis:
+  {X.Ansi.width(X.S.of([8230])) == 1 : U32}
+
+law w_box:
+  {X.Ansi.width(X.S.of([9472, 9474])) == 2 : U32}
+
+law w_thai:
+  {X.Ansi.width(X.S.of([3585, 3635])) == 2 : U32}
+
+law s_sgr:
+  {X.Ansi.strip(X.S.of([27, 91, 49, 59, 51, 49, 109, 120, 27, 91, 48, 109])) == X.S.of([120]) : String}
+
+law s_osc_title:
+  {X.Ansi.strip(X.S.of([27, 93, 48, 59, 116, 105, 116, 108, 101, 7, 120])) == X.S.of([120]) : String}
+
+law s_save_restore:
+  {X.Ansi.strip(X.S.of([27, 55, 120, 27, 56])) == X.S.of([120]) : String}
+
+law s_charset:
+  {X.Ansi.strip(X.S.of([27, 40, 48, 120])) == X.S.of([120]) : String}
+
+law s_private_csi:
+  {X.Ansi.strip(X.S.of([27, 91, 63, 50, 53, 108, 120])) == X.S.of([120]) : String}
+
+law s_dcs:
+  {X.Ansi.strip(X.S.of([27, 80, 113, 35, 48, 27, 92, 120])) == X.S.of([120]) : String}
+
+law s_link_st:
+  {X.Ansi.strip(X.S.of([27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 97, 27, 93, 56, 59, 59, 27, 92])) == X.S.of([97]) : String}
+
+law s_link_bel:
+  {X.Ansi.strip(X.S.of([27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 120, 46, 121, 7, 97, 27, 93, 56, 59, 59, 7])) == X.S.of([97]) : String}
+
+law s_open_osc:
+  {X.Ansi.strip(X.S.of([27, 93, 56, 59, 59, 117, 114, 108])) == X.S.of([27, 93, 56, 59, 59, 117, 114, 108]) : String}
+
+law s_open_dcs:
+  {X.Ansi.strip(X.S.of([27, 80, 113, 97, 98, 99])) == X.S.of([113, 97, 98, 99]) : String}
+
+law s_lone_esc:
+  {X.Ansi.strip(X.S.of([97, 27])) == X.S.of([97, 27]) : String}
+
+law s_esc_letter:
+  {X.Ansi.strip(X.S.of([27, 97])) == X.S.of([27, 97]) : String}
+
+law s_csi_bad:
+  {X.Ansi.strip(X.S.of([27, 91, 49, 50, 1, 120])) == X.S.of([27, 91, 49, 50, 1, 120]) : String}
+
+law l_plain:
+  {X.Ansi.slice(X.S.of([97, 98, 99, 100, 101, 102]), 1, 4) == X.S.of([98, 99, 100]) : String}
+
+law l_styled_in:
+  {X.Ansi.slice(X.S.of([27, 91, 51, 49, 109, 97, 98, 99, 27, 91, 51, 57, 109, 100, 101, 102]), 1, 5) == X.S.of([27, 91, 51, 49, 109, 98, 99, 27, 91, 51, 57, 109, 100, 101]) : String}
+
+law l_wide_end:
+  {X.Ansi.slice(X.S.of([97, 20013, 98]), 0, 2) == X.S.of([97]) : String}
+
+law l_wide_start:
+  {X.Ansi.slice(X.S.of([97, 20013, 98]), 2, 4) == X.S.of([98]) : String}
+
+law l_wide_whole:
+  {X.Ansi.slice(X.S.of([97, 20013, 98]), 1, 3) == X.S.of([20013]) : String}
+
+law l_styled_all:
+  {X.Ansi.slice(X.S.of([27, 91, 51, 49, 109, 97, 98, 99, 27, 91, 51, 57, 109]), 0, 3) == X.S.of([27, 91, 51, 49, 109, 97, 98, 99, 27, 91, 51, 57, 109]) : String}
+
+law l_pending_open:
+  {X.Ansi.slice(X.S.of([97, 98, 27, 91, 51, 49, 109, 20013]), 0, 3) == X.S.of([97, 98]) : String}
+
+law l_nested:
+  {X.Ansi.slice(X.S.of([27, 91, 51, 49, 109, 97, 27, 91, 49, 109, 98, 99, 27, 91, 50, 50, 109, 100, 27, 91, 51, 57, 109]), 1, 3) == X.S.of([27, 91, 51, 49, 109, 27, 91, 49, 109, 98, 99, 27, 91, 50, 50, 109, 27, 91, 51, 57, 109]) : String}
+
+law l_link:
+  {X.Ansi.slice(X.S.of([120, 27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 115, 105, 116, 101, 27, 93, 56, 59, 59, 27, 92, 121]), 2, 4) == X.S.of([27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 105, 116, 27, 93, 56, 59, 59, 27, 92]) : String}
+
+law l_emoji:
+  {X.Ansi.slice(X.S.of([97, 128512, 98]), 1, 3) == X.S.of([128512]) : String}
+
+law l_past:
+  {X.Ansi.slice(X.S.of([97, 98, 99]), 5, 8) == "" : String}
+
+law l_empty_range:
+  {X.Ansi.slice(X.S.of([97, 98, 99]), 2, 2) == "" : String}
+
+law l_bold_dim:
+  {X.Ansi.slice(X.S.of([27, 91, 49, 109, 27, 91, 50, 109, 97, 98, 27, 91, 50, 50, 109]), 1, 2) == X.S.of([27, 91, 50, 109, 98, 27, 91, 50, 50, 109]) : String}
+
+law l_tone:
+  {X.Ansi.slice(X.S.of([97, 128077, 127997, 98]), 1, 3) == X.S.of([128077, 127997]) : String}
+
+law l_mark:
+  {X.Ansi.slice(X.S.of([101, 769, 102]), 0, 1) == X.S.of([101, 769]) : String}
+
+law r_words:
+  {X.Ansi.wrap(X.S.of([116, 104, 101, 32, 113, 117, 105, 99, 107, 32, 98, 114, 111, 119, 110, 32, 102, 111, 120, 32, 106, 117, 109, 112, 115]), 10, False{}) == X.S.of([116, 104, 101, 32, 113, 117, 105, 99, 107, 10, 98, 114, 111, 119, 110, 32, 102, 111, 120, 10, 106, 117, 109, 112, 115]) : String}
+
+law r_styled:
+  {X.Ansi.wrap(X.S.of([27, 91, 51, 49, 109, 116, 104, 101, 32, 113, 117, 105, 99, 107, 32, 98, 114, 111, 119, 110, 27, 91, 51, 57, 109]), 10, False{}) == X.S.of([27, 91, 51, 49, 109, 116, 104, 101, 32, 113, 117, 105, 99, 107, 27, 91, 51, 57, 109, 10, 27, 91, 51, 49, 109, 98, 114, 111, 119, 110, 27, 91, 51, 57, 109]) : String}
+
+law r_hard:
+  {X.Ansi.wrap(X.S.of([97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 32, 120, 121]), 5, True{}) == X.S.of([97, 98, 99, 100, 101, 10, 102, 103, 104, 105, 106, 10, 107, 108, 32, 120, 121]) : String}
+
+law r_soft_long:
+  {X.Ansi.wrap(X.S.of([97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 32, 120, 121]), 5, False{}) == X.S.of([97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 10, 120, 121]) : String}
+
+law r_tab:
+  {X.Ansi.wrap(X.S.of([97, 9, 98]), 20, False{}) == X.S.of([97, 32, 32, 32, 32, 32, 32, 32, 98]) : String}
+
+law r_cjk:
+  {X.Ansi.wrap(X.S.of([26085, 26412, 35486, 26085, 26412, 35486]), 5, True{}) == X.S.of([26085, 26412, 10, 35486, 26085, 10, 26412, 35486]) : String}
+
+law r_cjk_soft:
+  {X.Ansi.wrap(X.S.of([26085, 26412, 35486, 32, 26085, 26412]), 4, False{}) == X.S.of([26085, 26412, 35486, 10, 26085, 26412]) : String}
+
+law r_spaces:
+  {X.Ansi.wrap(X.S.of([97, 32, 32, 98, 32, 32, 32, 99]), 3, False{}) == X.S.of([97, 10, 98, 10, 99]) : String}
+
+law r_leading:
+  {X.Ansi.wrap(X.S.of([32, 32, 32, 97, 98, 99, 32, 100, 101, 102]), 4, False{}) == X.S.of([97, 98, 99, 10, 100, 101, 102]) : String}
+
+law r_trailing:
+  {X.Ansi.wrap(X.S.of([97, 98, 99, 32, 32, 32]), 10, False{}) == X.S.of([97, 98, 99]) : String}
+
+law r_crlf:
+  {X.Ansi.wrap(X.S.of([97, 98, 32, 99, 100, 13, 10, 101, 102]), 3, False{}) == X.S.of([97, 98, 10, 99, 100, 10, 101, 102]) : String}
+
+law r_empty_lines:
+  {X.Ansi.wrap(X.S.of([97, 10, 10, 98]), 5, False{}) == X.S.of([97, 10, 10, 98]) : String}
+
+law r_blank_line:
+  {X.Ansi.wrap(X.S.of([32, 32, 32, 10, 120]), 5, False{}) == X.S.of([10, 120]) : String}
+
+law r_nested:
+  {X.Ansi.wrap(X.S.of([27, 91, 51, 49, 109, 97, 97, 32, 27, 91, 49, 109, 98, 98, 32, 99, 99, 27, 91, 50, 50, 109, 32, 100, 100, 27, 91, 51, 57, 109]), 5, False{}) == X.S.of([27, 91, 51, 49, 109, 97, 97, 32, 27, 91, 49, 109, 98, 98, 27, 91, 50, 50, 109, 27, 91, 51, 57, 109, 10, 27, 91, 51, 49, 109, 27, 91, 49, 109, 99, 99, 27, 91, 50, 50, 109, 32, 100, 100, 27, 91, 51, 57, 109]) : String}
+
+# wrap-ansi reopens the link with BEL; bend-tty keeps the ST it was written with
+law r_link:
+  {X.Ansi.wrap(X.S.of([27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 97, 97, 32, 98, 98, 32, 99, 99, 27, 93, 56, 59, 59, 27, 92]), 5, False{}) == X.S.of([27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 97, 97, 32, 98, 98, 27, 93, 56, 59, 59, 27, 92, 10, 27, 93, 56, 59, 59, 104, 116, 116, 112, 115, 58, 47, 47, 98, 101, 110, 100, 45, 108, 97, 110, 103, 46, 99, 111, 109, 27, 92, 99, 99, 27, 93, 56, 59, 59, 27, 92]) : String}
+
+law r_emoji:
+  {X.Ansi.wrap(X.S.of([128512, 128512, 128512, 32, 97, 98]), 4, True{}) == X.S.of([128512, 128512, 10, 128512, 10, 97, 98]) : String}
+
+law r_exact:
+  {X.Ansi.wrap(X.S.of([97, 98, 99, 32, 100, 101, 102]), 3, False{}) == X.S.of([97, 98, 99, 10, 100, 101, 102]) : String}
+
+law r_hard_exact:
+  {X.Ansi.wrap(X.S.of([97, 98, 99, 100, 101, 102]), 3, True{}) == X.S.of([97, 98, 99, 10, 100, 101, 102]) : String}
+
+law r_close_at_break:
+  {X.Ansi.wrap(X.S.of([27, 91, 51, 49, 109, 97, 97, 97, 32, 27, 91, 51, 57, 109, 98, 98, 98]), 3, False{}) == X.S.of([27, 91, 51, 49, 109, 97, 97, 97, 27, 91, 51, 57, 109, 10, 27, 91, 51, 57, 109, 98, 98, 98]) : String}
+
+law r_bg:
+  {X.Ansi.wrap(X.S.of([27, 91, 52, 52, 109, 97, 97, 97, 32, 98, 98, 98, 27, 91, 52, 57, 109]), 3, False{}) == X.S.of([27, 91, 52, 52, 109, 97, 97, 97, 27, 91, 52, 57, 109, 10, 27, 91, 52, 52, 109, 98, 98, 98, 27, 91, 52, 57, 109]) : String}
+
+law t_end:
+  {X.Ansi.truncate(X.S.of([117, 110, 105, 99, 111, 114, 110, 115, 32, 114, 97, 105, 110, 98, 111, 119]), 7, X.Cut.End{}) == X.S.of([117, 110, 105, 99, 111, 114, 8230]) : String}
+
+law t_start:
+  {X.Ansi.truncate(X.S.of([117, 110, 105, 99, 111, 114, 110, 115, 32, 114, 97, 105, 110, 98, 111, 119]), 7, X.Cut.Start{}) == X.S.of([8230, 97, 105, 110, 98, 111, 119]) : String}
+
+law t_middle:
+  {X.Ansi.truncate(X.S.of([117, 110, 105, 99, 111, 114, 110, 115, 32, 114, 97, 105, 110, 98, 111, 119]), 7, X.Cut.Middle{}) == X.S.of([117, 110, 105, 8230, 98, 111, 119]) : String}
+
+law t_styled_end:
+  {X.Ansi.truncate(X.S.of([27, 91, 51, 49, 109, 117, 110, 105, 99, 111, 114, 110, 115, 27, 91, 51, 57, 109]), 5, X.Cut.End{}) == X.S.of([27, 91, 51, 49, 109, 117, 110, 105, 99, 8230, 27, 91, 51, 57, 109]) : String}
+
+law t_styled_start:
+  {X.Ansi.truncate(X.S.of([27, 91, 51, 49, 109, 117, 110, 105, 99, 111, 114, 110, 115, 27, 91, 51, 57, 109]), 5, X.Cut.Start{}) == X.S.of([27, 91, 51, 49, 109, 8230, 111, 114, 110, 115, 27, 91, 51, 57, 109]) : String}
+
+law t_cjk_end:
+  {X.Ansi.truncate(X.S.of([20013, 25991, 20013, 25991]), 5, X.Cut.End{}) == X.S.of([20013, 25991, 8230]) : String}
+
+law t_cjk_start:
+  {X.Ansi.truncate(X.S.of([20013, 25991, 20013, 25991]), 4, X.Cut.Start{}) == X.S.of([8230, 25991]) : String}
+
+law t_fits:
+  {X.Ansi.truncate(X.S.of([97, 98, 99]), 3, X.Cut.End{}) == X.S.of([97, 98, 99]) : String}
+
+law t_one:
+  {X.Ansi.truncate(X.S.of([97, 98, 99]), 1, X.Cut.End{}) == X.S.of([8230]) : String}
+
+law t_zero:
+  {X.Ansi.truncate(X.S.of([97, 98, 99]), 0, X.Cut.End{}) == "" : String}
+
+law t_middle_even:
+  {X.Ansi.truncate(X.S.of([97, 98, 99, 100, 101, 102, 103, 104]), 6, X.Cut.Middle{}) == X.S.of([97, 98, 99, 8230, 103, 104]) : String}
+
+law t_emoji_end:
+  {X.Ansi.truncate(X.S.of([97, 128512, 128512]), 3, X.Cut.End{}) == X.S.of([97, 8230]) : String}
+
+law t_two:
+  {X.Ansi.truncate(X.S.of([97, 98, 99]), 2, X.Cut.Middle{}) == X.S.of([97, 8230]) : String}
