@@ -4,7 +4,9 @@ What bend-tty copies from the Node libraries that make a CLI look good
 (chalk and its family), what it takes from Charm's Go libraries as a second
 design, and where it differs. Every source below was read in this session
 from a shallow clone of its default branch on 2026-11-24, at the commit
-given; nothing was run. Two references below were not read in this session
+given. Later, to check bend-tty against them, supports-color, chalk,
+string-width, strip-ansi, slice-ansi, wrap-ansi and cli-truncate were run
+under bun 1.4.5 on the same inputs (the laws say where). Two references below were not read in this session
 and are marked *(remembered)*: the no-color.org convention and Node's
 `tty.getColorDepth`.
 
@@ -126,7 +128,10 @@ reverse order.
 
 ## Where bend-tty differs, and why
 
-Each point was agreed with the owner before the code was written.
+The NO_COLOR, COLORTERM=24bit, argv and Windows points, the grapheme
+approximation, no NFC, keeping `hard` and a single colour scale were agreed
+with the owner before the code was written. The rest were decided while
+building it and await the owner's review.
 
 - **NO_COLOR.** supports-color and chalk do not read it at all (no match in
   either repo). bend-tty honours it as no-color.org says *(remembered)*: any

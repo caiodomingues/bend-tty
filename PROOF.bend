@@ -401,6 +401,9 @@ def Laws.paint_nest_inner_newline():
 def Laws.text_truncate_zero(s, c):
   {==}
 
+def Laws.text_wrap_zero(s, hard):
+  {==}
+
 def Laws.text_styled_width():
   {==}
 

@@ -513,6 +513,12 @@ law text_truncate_zero:
   for c: X.Cut
   {X.Ansi.truncate(s, 0, c) == "" : String}
 
+# LAW: a width of 0 leaves the string as it is
+law text_wrap_zero:
+  for s: String
+  for hard: Bool
+  {X.Ansi.wrap(s, 0, hard) == s : String}
+
 # styling changes neither the width nor, stripped, the text
 law text_styled_width:
   {[X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([20013, 25991, 32, 97, 98, 99]))), X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]))), X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([101, 769, 769]))), X.Ansi.width(C.Style.paint(C.Level.Basic{}, C.Style.bold(C.Style.fg(C.Color.red(), C.Style.plain())), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([20013, 25991, 32, 97, 98, 99]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([128104, 8205, 128105, 8205, 128103, 32, 111, 107]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([101, 769, 769]))), X.Ansi.width(C.Style.paint(C.Level.TrueColor{}, C.Style.underline(C.Style.bg(C.Color.Rgb{10, 20, 30}, C.Style.plain())), X.S.of([26085, 26412, 10, 35486, 32, 10084, 65039])))]
