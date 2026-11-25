@@ -89,10 +89,15 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 | `Tty.clear()`, `Tty.home()`, `Tty.goto(x, y)` | erase; the cursor home; to column x, row y (from 1) |
 | `Tty.alt(on)`, `Tty.cursor(show)` | the alternate screen; the cursor |
 | `Tty.fg(c)`, `Tty.bg(c)`, `Tty.bold()`, `Tty.reset()` | 256-color paint |
+| `Tty.up(n)`, `Tty.down(n)`, `Tty.column(x)` | the cursor `n` rows up or down (nothing for 0), or to column `x` (from 1) |
+| `Tty.erase_line()`, `Tty.erase_down()`, `Tty.erase_lines(n)` | erase the cursor's row; from the cursor to the end of the screen; the `n` rows ending at the cursor's, leaving it at the start of the top one, as ansi-escapes' `eraseLines` (what an inline frame clears before it is drawn again) |
+| `Tty.save()`, `Tty.restore()` | the cursor's position, saved and restored (`ESC 7`, `ESC 8`) |
+| `Tty.sync(on)` | synchronized output (DEC mode 2026): what is written between on and off shows at once where the terminal supports it, and both are ignored where it does not |
+| `Tty.link(on, url, text)` | an OSC 8 hyperlink; off, `text (url)`, or `url` alone when the text is the url |
 
 | pure (`color.bend`) | what |
 | --- | --- |
-| `Level` | `Level.None` (no escapes at all), `Level.Basic` (16 colours), `Level.Ansi256`, `Level.TrueColor`; `Level.show(l)` |
+| `Level` | `Level.None` (no escapes at all), `Level.Basic` (16 colours), `Level.Ansi256`, `Level.TrueColor`; `Level.show(l)`, `Level.is_none(l)` |
 | `Facts{tty, force, env}` | `tty`: is the stream a terminal; `force`: the program's own override (`Some{Level.None{}}` for `--no-color`, `Basic` for `--color`, `Ansi256` for `--color=256`, `TrueColor` for `--color=16m`); `env`: a `Var{name, value}` per variable, `None` when unset and `Some{""}` when set but empty |
 | `Facts.forced(f, l)`, `Facts.names()` | the facts with an override; the variables `Level.detect` reads |
 | `Level.detect(f)` | `Facts -> Level`: [supports-color](https://github.com/chalk/supports-color)'s rules in its order, with `NO_COLOR` read and `COLORTERM=24bit` as truecolor (see below) |
@@ -182,7 +187,8 @@ colours and modifiers (bold inside dim share 22, and both reopen), line
 breaks (`
 ` and `
 `, trailing ones included) and every colour model
-at levels 1 to 3.
+at levels 1 to 3. Each is the output of chalk 6.0.1 run under bun 1.4.5 on
+the same chain, with no difference.
 
 The text laws pin `text.bend` to the libraries it follows: 91 samples
 (30 widths, 13 strips, 15 slices, 20 wraps, 13 truncations) on ASCII,
@@ -197,6 +203,10 @@ the link was written with (`r_link` says so). `text_styled_width` and
 nor, stripped, its text; `text_wrap_fits` that wrapped lines are never
 wider than the width, but for a single word longer than it in a soft
 wrap; `text_truncate_zero` holds for every string.
+
+`inline_escapes`, `inline_erase_lines` and `inline_link` pin the inline
+escapes byte for byte, and `inline_link_text` says a link stripped is its
+text, and as wide.
 
 ## Lanes
 
@@ -223,7 +233,9 @@ wrap; `text_truncate_zero` holds for every string.
   with truecolor, every colour and style at every level. The 91 text
   samples give the same answers natively and under bun, and
   `demos/text.bend` writes the same bytes on both, piped (no ESC byte, also
-  with `NO_COLOR=1`) and under a pty.
+  with `NO_COLOR=1`) and under a pty. So does `demos/inline.bend`: under a
+  pty it redraws its frame in place 20 times; piped it writes only the
+  finished frame and the link as text.
 - Windows is not a Bend host and was not tried; `Tty.read` needs libc's
   `select` and `read` through `bun:ffi`.
 
@@ -283,13 +295,14 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
     bend demos/level.bend                # this terminal's level; | cat for a pipe
     bend demos/colors.bend               # every colour and style at every level; | cat shows the escapes
     bend demos/text.bend                 # width, slice, wrap and truncate on CJK and emoji
+    bend demos/inline.bend               # a progress frame redrawn in place, then a link
     python3 tools/gen_unicode.py <ucd> > unicode.bend   # regenerate the tables from Unicode's files
     bend PROOF.bend                      # ALL PROOFS CHECK
     bend demos/keys.bend                 # interactive; or piped
     bend demos/counter.bend -o counter && ./counter
     bend demos/counter.bend -o counter.js && bun counter.js
 
-`bend LAWS.bend` reports its 204 laws as TODOs (they are proven in
+`bend LAWS.bend` reports its 208 laws as TODOs (they are proven in
 `PROOF.bend`). `--check-only` on `tty_io.bend` or a demo prints `SOME PROOFS
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run

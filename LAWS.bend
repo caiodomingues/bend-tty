@@ -803,3 +803,26 @@ law t_emoji_end:
 
 law t_two:
   {X.Ansi.truncate(X.S.of([97, 98, 99]), 2, X.Cut.Middle{}) == X.S.of([97, 8230]) : String}
+
+# Inline
+# ------
+# The escapes an inline frame needs, as bytes; a link stripped is its
+# text, and takes its text's width
+
+law inline_escapes:
+  {[T.Tty.up(3), T.Tty.down(1), T.Tty.up(0), T.Tty.column(5), T.Tty.erase_line(), T.Tty.erase_down(),
+    T.Tty.save(), T.Tty.restore(), T.Tty.sync(True{}), T.Tty.sync(False{}), T.Tty.erase_lines(0)]
+   == [SCon{Chr{27}, "[3A"}, SCon{Chr{27}, "[1B"}, "", SCon{Chr{27}, "[5G"}, SCon{Chr{27}, "[2K"}, SCon{Chr{27}, "[J"}, SCon{Chr{27}, "7"}, SCon{Chr{27}, "8"}, SCon{Chr{27}, "[?2026h"}, SCon{Chr{27}, "[?2026l"}, ""] : List<&2, String>}
+
+# three rows erased: erase, up, erase, up, erase, then column 1
+law inline_erase_lines:
+  {T.Tty.erase_lines(3) == SCon{Chr{27}, "[2K"} ++ SCon{Chr{27}, "[1A"} ++ SCon{Chr{27}, "[2K"} ++ SCon{Chr{27}, "[1A"} ++ SCon{Chr{27}, "[2K"} ++ SCon{Chr{27}, "[1G"} : String}
+
+law inline_link:
+  {[T.Tty.link(True{}, "https://bend-lang.com", "Bend"), T.Tty.link(False{}, "https://bend-lang.com", "Bend"),
+    T.Tty.link(False{}, "https://bend-lang.com", "https://bend-lang.com")]
+   == [SCon{Chr{27}, "]8;;"} ++ "https://bend-lang.com" ++ SCon{Chr{27}, "\\"} ++ "Bend" ++ SCon{Chr{27}, "]8;;"} ++ SCon{Chr{27}, "\\"}, "Bend (https://bend-lang.com)", "https://bend-lang.com"] : List<&2, String>}
+
+law inline_link_text:
+  {[X.Ansi.strip(T.Tty.link(True{}, "https://bend-lang.com", "Bend 日本")), U32.show(X.Ansi.width(T.Tty.link(True{}, "https://bend-lang.com", "Bend 日本")))]
+   == ["Bend 日本", "9"] : List<&2, String>}

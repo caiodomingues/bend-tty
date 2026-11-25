@@ -682,3 +682,15 @@ def Laws.t_emoji_end():
 
 def Laws.t_two():
   {==}
+
+def Laws.inline_escapes():
+  {==}
+
+def Laws.inline_erase_lines():
+  {==}
+
+def Laws.inline_link():
+  {==}
+
+def Laws.inline_link_text():
+  {==}
