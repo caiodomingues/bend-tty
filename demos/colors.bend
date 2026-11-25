@@ -1,4 +1,4 @@
-# colors: the same colours at every level. On a terminal each row is
+# colors: the same colours and styles at every level. On a terminal each row is
 # painted as that level paints it; piped, stdout's level is none, so each
 # row is printed with its escapes made visible (\e for ESC): what that
 # level would send, and no escape reaches the pipe.
@@ -54,6 +54,19 @@ def row(+l: C.Level, name: String) -> String:
   name ++ swatches(l, basics(16n, 0)) ++ " " ++ swatches(l, ramp()) ++ " " ++ swatches(l, greys(13n, 0))
     ++ " " ++ C.Color.fg(l, C.Color.hex("ff8800")) ++ "orange" ++ C.Color.fg_close(l)
 
+def styled(+l: C.Level, st: C.Style, s: String) -> String:
+  C.Style.paint(l, st, s) ++ " "
+
+# every modifier by name, then a blue word nested in red bold: the red
+# and bold come back after it, and a line break inside a style
+def styles(+l: C.Level, name: String) -> String:
+  +p = C.Style.plain()
+  name ++ styled(l, C.Style.bold(p), "bold") ++ styled(l, C.Style.dim(p), "dim") ++ styled(l, C.Style.italic(p), "italic")
+    ++ styled(l, C.Style.underline(p), "underline") ++ styled(l, C.Style.inverse(p), "inverse")
+    ++ styled(l, C.Style.hidden(p), "hidden") ++ styled(l, C.Style.strike(p), "strike") ++ "| "
+    ++ styled(l, C.Style.bold(C.Style.fg(C.Color.red(), p)), "red bold " ++ C.Style.paint(l, C.Style.fg(C.Color.blue(), p), "blue") ++ " red bold again")
+    ++ styled(l, C.Style.bg(C.Color.yellow(), C.Style.fg(C.Color.black(), p)), "two\nlines")
+
 def show(+out: C.Level, s: String) -> String:
   match out:
     case C.Level.None{}:
@@ -67,6 +80,10 @@ def page(+out: C.Level) -> String:
     ++ show(out, row(C.Level.Ansi256{}, "256       "))
     ++ show(out, row(C.Level.Basic{}, "16        "))
     ++ show(out, row(C.Level.None{}, "none      "))
+    ++ show(out, styles(C.Level.TrueColor{}, "truecolor "))
+    ++ show(out, styles(C.Level.Ansi256{}, "256       "))
+    ++ show(out, styles(C.Level.Basic{}, "16        "))
+    ++ show(out, styles(C.Level.None{}, "none      "))
 
 def main() -> IO(Unit):
   do IO<Unit>:

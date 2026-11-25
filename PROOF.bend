@@ -310,3 +310,89 @@ def Laws.color_hex():
 
 def Laws.color_escapes():
   {==}
+
+def Laws.paint_none(st, s):
+  {==}
+
+def Laws.paint_empty_all(l, st):
+  match l:
+    case C.Level.None{}:
+      {==}
+    case C.Level.Basic{}:
+      {==}
+    case C.Level.Ansi256{}:
+      {==}
+    case C.Level.TrueColor{}:
+      {==}
+
+def Laws.paint_red():
+  {==}
+
+def Laws.paint_red_bold():
+  {==}
+
+def Laws.paint_nest_fg():
+  {==}
+
+def Laws.paint_nest_bold_dim():
+  {==}
+
+def Laws.paint_newline():
+  {==}
+
+def Laws.paint_crlf():
+  {==}
+
+def Laws.paint_trailing_newline():
+  {==}
+
+def Laws.paint_empty():
+  {==}
+
+def Laws.paint_level_none():
+  {==}
+
+def Laws.paint_hex_256():
+  {==}
+
+def Laws.paint_hex_16():
+  {==}
+
+def Laws.paint_hex_true():
+  {==}
+
+def Laws.paint_bg_underline():
+  {==}
+
+def Laws.paint_all_modifiers():
+  {==}
+
+def Laws.paint_reopen_two():
+  {==}
+
+def Laws.paint_deep():
+  {==}
+
+def Laws.paint_inverse_italic():
+  {==}
+
+def Laws.paint_fg_bg_lines():
+  {==}
+
+def Laws.paint_bg_hex_256():
+  {==}
+
+def Laws.paint_other_escape():
+  {==}
+
+def Laws.paint_ansi256_16():
+  {==}
+
+def Laws.paint_ansi256_256():
+  {==}
+
+def Laws.paint_rgb_true_nest():
+  {==}
+
+def Laws.paint_nest_inner_newline():
+  {==}

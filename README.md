@@ -8,7 +8,7 @@ use its C and JS effect API, which has no ABI promise across releases.
 
 The pure files are `tty.bend` (the escapes, `Key` and the decoder) and
 `color.bend` (what a terminal can show: `Level` and `Level.detect`, and
-`Color` and its escapes at each level);
+`Color` and its escapes at each level, `Style` and `Style.paint`);
 `tty_io.bend` holds the effects. A proof may import no foreign code, so the
 split keeps `PROOF.bend` on the pure files; a program imports each file it
 names (Bend does not re-export imports).
@@ -97,6 +97,8 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 | `Color.at(l, c)` | `Level -> Color -> Color`: the colour as the level shows it, as chalk does: RGB to the 256 palette at 256, the palette and RGB to the 16 at 16, nothing changed at truecolor; a basic colour and the default never change |
 | `Color.fg(l, c)`, `Color.bg(l, c)` | the escape that paints the foreground or the background, `c` converted to `l` first; `""` at `Level.None` |
 | `Color.fg_close(l)`, `Color.bg_close(l)` | the default colour back (`ESC [ 39 m`, `ESC [ 49 m`); `""` at `Level.None` |
+| `Style` | a foreground, a background (`Color.Default` is unset) and bold, dim, italic, underline, inverse, hidden, strike; `Style.plain()`, then `Style.fg(c, st)`, `Style.bg(c, st)`, `Style.bold(st)`, `Style.dim(st)`, `Style.italic(st)`, `Style.underline(st)`, `Style.inverse(st)`, `Style.hidden(st)`, `Style.strike(st)` |
+| `Style.paint(l, st, s)` | `Level -> Style -> String -> String`: `s` in `st` as chalk paints it at level `l`. Each part has its own close (39, 49, 22, 22, 23, 24, 27, 28, 29), so a painted string nests in another: after each of the outer style's closes found inside, the outer part is opened again; each line break is wrapped in the closes and the opens. At `Level.None`, and for `""`, the answer is `s` itself |
 
 `Level.detect` answers what supports-color 11.0.0 answers for the same
 stream and environment, with three exceptions, each on purpose
@@ -159,6 +161,16 @@ ansi-styles' `rgbToAnsi256` and `ansi256ToAnsi` on all 256 palette entries,
 all 256 greys and 4096 RGB colours, natively and under bun, with no
 difference.
 
+`Style.paint` has two laws over every style and string: at `Level.None`
+the answer is the string itself, so nothing styled sends an escape to a
+pipe (`paint_none`), and `""` stays `""` at every level
+(`paint_empty_all`). 24 samples pin it to chalk 6.0.1's output: nested
+colours and modifiers (bold inside dim share 22, and both reopen), line
+breaks (`
+` and `
+`, trailing ones included) and every colour model
+at levels 1 to 3.
+
 ## Lanes
 
 - **Native** (`bend x.bend -o x`): Linux and macOS. `tty_raw.c` is termios,
@@ -181,7 +193,7 @@ difference.
   `FORCE_COLOR=3` (truecolor on both) and GitHub Actions (truecolor on a
   pty, none piped), each lane answering the same. `demos/colors.bend` writes
   the same bytes on both lanes, piped (no ESC byte in it) and under a pty
-  with truecolor.
+  with truecolor, every colour and style at every level.
 - Windows is not a Bend host and was not tried; `Tty.read` needs libc's
   `select` and `read` through `bun:ffi`.
 
@@ -239,13 +251,13 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
     bend tty.bend                        # the decoder on a sample
     bend color.bend                      # Level.detect on sample environments
     bend demos/level.bend                # this terminal's level; | cat for a pipe
-    bend demos/colors.bend               # every colour at every level; | cat shows the escapes
+    bend demos/colors.bend               # every colour and style at every level; | cat shows the escapes
     bend PROOF.bend                      # ALL PROOFS CHECK
     bend demos/keys.bend                 # interactive; or piped
     bend demos/counter.bend -o counter && ./counter
     bend demos/counter.bend -o counter.js && bun counter.js
 
-`bend LAWS.bend` reports its 83 laws as TODOs (they are proven in
+`bend LAWS.bend` reports its 109 laws as TODOs (they are proven in
 `PROOF.bend`). `--check-only` on `tty_io.bend` or a demo prints `SOME PROOFS
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run

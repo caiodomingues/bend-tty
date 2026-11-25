@@ -166,6 +166,18 @@ Each point was agreed with the owner before the code was written.
 - **RGB channels are clamped.** ansi-styles takes any number and writes
   `38;2;300;0;0` as given; bend-tty reads a channel above 255 as 255, in the
   escape and in the conversions, so every colour it writes is valid.
+- **A style is a record, not a chain.** chalk opens the parts of
+  `chalk.bold.red` in the order written (`1` then `31`); a `Style` always
+  opens them in one order: fg, bg, bold, dim, italic, underline, inverse,
+  hidden, strike. A terminal shows the same thing either way; the bytes
+  differ. A chain such as `chalk.red.blue` stacks two foregrounds, but a
+  `Style` holds one colour on each side, and `Color.Default` means "not
+  set". chalk's `visible` modifier is not reproduced.
+- **Painting reads escapes whole.** chalk finds a style's closing code by
+  substring (`replaceAll`); bend-tty cuts the string into characters, line
+  breaks and complete `ESC [` sequences first and compares whole
+  sequences. The closing codes are complete sequences that cannot occur
+  inside another CSI sequence, so the answers are the same.
 - **One level, not two.** colorprofile separates "no colour but bold" from
   "no escapes at all". bend-tty keeps supports-color's single scale, and at
   level none nothing is styled, so no escape reaches a pipe.
