@@ -225,8 +225,14 @@ text, and as wide.
   find module 'bun:ffi'`. A `-o x.js` build succeeds even when an effect is
   broken; only running it shows the failure.
 - `color.bend`, `text.bend`, `unicode.bend`, `Tty.isatty` and the inline
-  escapes were verified on macOS only: they have not run on Linux (WSL)
-  yet.
+  escapes, on Linux (WSL, x86_64) with Bend 2.0.40 and bun 1.4.2, from a
+  fresh clone: the proofs; every demo built and run on both lanes, piped
+  and under a pty, in the environments below; the level of each
+  environment as on macOS; `demos/colors.bend` and `demos/text.bend`
+  piped, the 91 text samples, the Unicode table at every interval edge and
+  the colour conversions, byte for byte the macOS output. bend-tui's
+  three demos, driven by keys under an 80x24 pty, quit with 0 on both
+  lanes.
 - Verified on macOS (arm64) with Bend 2.0.40 and bun 1.4.5, natively and
   under bun: `Tty.isatty` on a pty and piped, and `demos/level.bend` under
   a pty and piped with `TERM=xterm-256color` (256 and none), `NO_COLOR=1`
