@@ -1,10 +1,46 @@
-# bend-tty
+<p align="center">
+  <img src="docs/media/banner.jpg" alt="bend-tty" width="720">
+</p>
 
-The terminal for [Bend](https://bend-lang.com) 2: raw mode, the window size,
-a timed read of stdin and whether a stream is a terminal as host effects,
-plus the escapes, the key decoder and the colour level a terminal program
-needs, in pure Bend with its laws proven. Requires Bend 2.0.40: the effects
-use its C and JS effect API, which has no ABI promise across releases.
+<h1 align="center">bend-tty</h1>
+
+<p align="center">
+  The terminal for <a href="https://bend-lang.com">Bend</a> 2: keys, colours, text and raw mode, with the laws proven.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/bend-2.0.40-8a2be2.svg" alt="Bend 2.0.40">
+  <img src="https://img.shields.io/badge/laws-209%20proven-2ea44f.svg" alt="209 laws proven">
+  <img src="https://img.shields.io/badge/unicode-18.0.0-informational.svg" alt="Unicode 18.0.0">
+</p>
+
+Raw mode, the window size, a timed read of stdin and whether a stream is a
+terminal as host effects, plus the escapes, the key decoder and the colour
+level a terminal program needs, in pure Bend with its laws proven.
+
+## Highlights
+
+- **Keys**: one decoder for UTF-8, arrows with modifiers, Home/End in both
+  spellings, F1-F12 and `Alt`; an unknown sequence becomes nothing, never a
+  stray `Esc`.
+- **Colour**: `Level.detect` answers what
+  [supports-color](https://github.com/chalk/supports-color) answers, and
+  `Style.paint` writes what [chalk](https://github.com/chalk/chalk) writes,
+  nesting included.
+- **Text**: strip, width, slice, wrap and truncate by display columns, as
+  string-width, slice-ansi, wrap-ansi and cli-truncate do, on CJK and emoji.
+- **Proven**: `bend PROOF.bend` checks 209 laws over the pure files.
+- **Two lanes**: native (Linux, macOS) and JS under bun, each verified
+  under a pty and piped.
+
+## Install
+
+Requires Bend 2.0.40: the effects use its C and JS effect API, which has no
+ABI promise across releases. Clone the repo next to your program (or vendor
+it) and import the files by path:
+
+    git clone https://github.com/caiodomingues/bend-tty
 
 The pure files are `tty.bend` (the escapes, `Key` and the decoder) and
 `color.bend` (what a terminal can show: `Level` and `Level.detect`, and
@@ -16,6 +52,8 @@ generated from the Unicode Character Database 18.0.0 by
 `tty_io.bend` holds the effects. A proof may import no foreign code, so the
 split keeps `PROOF.bend` on the pure files; a program imports each file it
 names (Bend does not re-export imports).
+
+## Usage
 
 ```python
 import Base
@@ -318,3 +356,22 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run
 everything in WSL.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening one, run
+`bend PROOF.bend` (it must print `ALL PROOFS CHECK`) and, for a change to
+an effect, build and run the demos on both lanes. A new behaviour comes with
+its law in `LAWS.bend` and its proof in `PROOF.bend`.
+
+## Related
+
+- [chalk](https://github.com/chalk/chalk) and its family, which the colour
+  and text files follow; `docs/grounding.md` compares them line by line.
+- [Charm](https://github.com/charmbracelet)'s Go libraries, the second
+  design read for the same problems.
+- [Bend](https://bend-lang.com), the language.
+
+## License
+
+[MIT](LICENSE) © Caio Domingues
