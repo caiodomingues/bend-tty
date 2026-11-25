@@ -5,6 +5,7 @@
 
 import Base
 import ./tty.bend as T
+import ./color.bend as C
 
 # LAW: a printable byte is that character
 law keys_plain:
@@ -71,3 +72,233 @@ law keys_utf8:
 # LAW: nothing decodes to nothing
 law keys_nil:
   {T.Tty.keys(Nil{}) == Nil{} : List<&2, T.Key>}
+
+# Colour level
+# ------------
+# Level.detect on the environments a CLI meets. Each answer is
+# supports-color 11.0.0's for the same facts, except where a row notes it:
+# bend-tty reads NO_COLOR and takes COLORTERM=24bit as truecolor.
+
+# no variables, on a terminal: None
+law detect_empty:
+  {C.Level.detect(C.Facts{True{}, None{}, Nil{}}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color, on a terminal: Ansi256
+law detect_term_256:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm-256color, on a pipe: None
+law detect_term_256_pipe:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("TERM", "xterm-256color")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm, on a terminal: Basic
+law detect_term_xterm:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=dumb, on a terminal: None
+law detect_dumb:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "dumb")]}) == C.Level.None{} : C.Level}
+
+# TERM=dumb FORCE_COLOR=true, on a terminal: Basic
+law detect_dumb_forced:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "dumb"), C.Var.set("FORCE_COLOR", "true")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=xterm-256color FORCE_COLOR=0, on a terminal: None
+law detect_force_0:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("FORCE_COLOR", "0")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color FORCE_COLOR=false, on a terminal: None
+law detect_force_false:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("FORCE_COLOR", "false")]}) == C.Level.None{} : C.Level}
+
+# FORCE_COLOR=3, on a pipe: TrueColor
+law detect_force_3_pipe:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("FORCE_COLOR", "3")]}) == C.Level.TrueColor{} : C.Level}
+
+# FORCE_COLOR=007, on a pipe: TrueColor
+law detect_force_007:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("FORCE_COLOR", "007")]}) == C.Level.TrueColor{} : C.Level}
+
+# FORCE_COLOR=9, on a terminal: TrueColor
+law detect_force_9:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("FORCE_COLOR", "9")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=xterm-256color FORCE_COLOR=1, on a terminal: Basic
+law detect_force_1_256:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("FORCE_COLOR", "1")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=xterm-256color FORCE_COLOR='', on a pipe: Ansi256
+law detect_force_empty_pipe:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("FORCE_COLOR", "")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm FORCE_COLOR=yes, on a terminal: Basic
+law detect_force_junk:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm"), C.Var.set("FORCE_COLOR", "yes")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=xterm FORCE_COLOR=yes, on a pipe: None
+law detect_force_junk_pipe:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("TERM", "xterm"), C.Var.set("FORCE_COLOR", "yes")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color COLORTERM=truecolor, on a terminal: TrueColor
+law detect_colorterm_truecolor:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("COLORTERM", "truecolor")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=xterm-256color COLORTERM=24bit, on a terminal: TrueColor  (supports-color: Ansi256)
+law detect_colorterm_24bit:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("COLORTERM", "24bit")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=xterm COLORTERM=24bit, on a terminal: TrueColor  (supports-color: Basic)
+law detect_colorterm_24bit_xterm:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm"), C.Var.set("COLORTERM", "24bit")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=foo COLORTERM=yes, on a terminal: Basic
+law detect_colorterm_any:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "foo"), C.Var.set("COLORTERM", "yes")]}) == C.Level.Basic{} : C.Level}
+
+# CI=true GITHUB_ACTIONS=true, on a pipe: None
+law detect_github_pipe:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("CI", "true"), C.Var.set("GITHUB_ACTIONS", "true")]}) == C.Level.None{} : C.Level}
+
+# CI=true GITHUB_ACTIONS=true, on a terminal: TrueColor
+law detect_github:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("CI", "true"), C.Var.set("GITHUB_ACTIONS", "true")]}) == C.Level.TrueColor{} : C.Level}
+
+# CI=true TRAVIS=1 TERM=xterm-256color, on a terminal: Basic
+law detect_travis:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("CI", "true"), C.Var.set("TRAVIS", "1"), C.Var.set("TERM", "xterm-256color")]}) == C.Level.Basic{} : C.Level}
+
+# CI='' TERM=xterm-256color, on a terminal: None
+law detect_ci_empty:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("CI", ""), C.Var.set("TERM", "xterm-256color")]}) == C.Level.None{} : C.Level}
+
+# CI=1 CI_NAME=codeship, on a terminal: Basic
+law detect_codeship:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("CI", "1"), C.Var.set("CI_NAME", "codeship")]}) == C.Level.Basic{} : C.Level}
+
+# TF_BUILD=True AGENT_NAME=x, on a pipe: Basic
+law detect_azure_pipe:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("TF_BUILD", "True"), C.Var.set("AGENT_NAME", "x")]}) == C.Level.Basic{} : C.Level}
+
+# TEAMCITY_VERSION=9.1.5, on a terminal: Basic
+law detect_teamcity_9_1:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TEAMCITY_VERSION", "9.1.5")]}) == C.Level.Basic{} : C.Level}
+
+# TEAMCITY_VERSION=9.0.5 TERM=xterm-256color, on a terminal: None
+law detect_teamcity_9_0:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TEAMCITY_VERSION", "9.0.5"), C.Var.set("TERM", "xterm-256color")]}) == C.Level.None{} : C.Level}
+
+# TEAMCITY_VERSION=2017.1, on a terminal: Basic
+law detect_teamcity_2017:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TEAMCITY_VERSION", "2017.1")]}) == C.Level.Basic{} : C.Level}
+
+# TEAMCITY_VERSION=8.0, on a terminal: None
+law detect_teamcity_8:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TEAMCITY_VERSION", "8.0")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color TERM_PROGRAM=iTerm.app TERM_PROGRAM_VERSION=3.4.19, on a terminal: TrueColor
+law detect_iterm_3:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("TERM_PROGRAM", "iTerm.app"), C.Var.set("TERM_PROGRAM_VERSION", "3.4.19")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=xterm-256color TERM_PROGRAM=iTerm.app TERM_PROGRAM_VERSION=2.9, on a terminal: Ansi256
+law detect_iterm_2:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("TERM_PROGRAM", "iTerm.app"), C.Var.set("TERM_PROGRAM_VERSION", "2.9")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM_PROGRAM=iTerm.app, on a terminal: Ansi256
+law detect_iterm_noversion:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM_PROGRAM", "iTerm.app")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm TERM_PROGRAM=Apple_Terminal, on a terminal: Ansi256
+law detect_apple:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm"), C.Var.set("TERM_PROGRAM", "Apple_Terminal")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm-256color TERM_PROGRAM=vscode, on a terminal: Ansi256
+law detect_vscode:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("TERM_PROGRAM", "vscode")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm-kitty, on a terminal: TrueColor
+law detect_kitty:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-kitty")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=xterm-ghostty, on a terminal: TrueColor
+law detect_ghostty:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-ghostty")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=wezterm, on a terminal: TrueColor
+law detect_wezterm:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "wezterm")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=screen, on a terminal: Basic
+law detect_screen:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "screen")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=linux, on a terminal: Basic
+law detect_linux:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "linux")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=rxvt-unicode-256color, on a terminal: Ansi256
+law detect_rxvt_256:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "rxvt-unicode-256color")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=VT100, on a terminal: Basic
+law detect_upper_vt100:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "VT100")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=XTERM-256, on a terminal: Ansi256
+law detect_upper_256:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "XTERM-256")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=mycolorterm, on a terminal: Basic
+law detect_has_color:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "mycolorterm")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=xterm-256color NO_COLOR=1, on a terminal: None  (supports-color: Ansi256)
+law detect_no_color:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("NO_COLOR", "1")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color NO_COLOR='', on a terminal: Ansi256
+law detect_no_color_empty:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("NO_COLOR", "")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm-256color NO_COLOR=1 FORCE_COLOR=1, on a terminal: Basic
+law detect_no_color_force_1:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("NO_COLOR", "1"), C.Var.set("FORCE_COLOR", "1")]}) == C.Level.Basic{} : C.Level}
+
+# TERM=xterm-256color NO_COLOR=1 FORCE_COLOR=true, on a terminal: Ansi256
+law detect_no_color_force_true:
+  {C.Level.detect(C.Facts{True{}, None{}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("NO_COLOR", "1"), C.Var.set("FORCE_COLOR", "true")]}) == C.Level.Ansi256{} : C.Level}
+
+# NO_COLOR=1 TF_BUILD=1 AGENT_NAME=x, on a pipe: None  (supports-color: Basic)
+law detect_no_color_azure:
+  {C.Level.detect(C.Facts{False{}, None{}, [C.Var.set("NO_COLOR", "1"), C.Var.set("TF_BUILD", "1"), C.Var.set("AGENT_NAME", "x")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color, on a terminal, the program passing --no-color: None
+law detect_flag_no_color:
+  {C.Level.detect(C.Facts{True{}, Some{C.Level.None{}}, [C.Var.set("TERM", "xterm-256color")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color FORCE_COLOR=3, on a terminal, the program passing --no-color: TrueColor
+law detect_flag_no_color_env_3:
+  {C.Level.detect(C.Facts{True{}, Some{C.Level.None{}}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("FORCE_COLOR", "3")]}) == C.Level.TrueColor{} : C.Level}
+
+# TERM=xterm-256color, on a pipe, the program passing --color: Ansi256
+law detect_flag_color_pipe:
+  {C.Level.detect(C.Facts{False{}, Some{C.Level.Basic{}}, [C.Var.set("TERM", "xterm-256color")]}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=dumb, on a terminal, the program passing --color: Basic
+law detect_flag_color_dumb:
+  {C.Level.detect(C.Facts{True{}, Some{C.Level.Basic{}}, [C.Var.set("TERM", "dumb")]}) == C.Level.Basic{} : C.Level}
+
+# no variables, on a pipe, the program passing --color=256: Ansi256
+law detect_flag_256_pipe:
+  {C.Level.detect(C.Facts{False{}, Some{C.Level.Ansi256{}}, Nil{}}) == C.Level.Ansi256{} : C.Level}
+
+# TERM=xterm, on a terminal, the program passing --color=16m: TrueColor
+law detect_flag_16m:
+  {C.Level.detect(C.Facts{True{}, Some{C.Level.TrueColor{}}, [C.Var.set("TERM", "xterm")]}) == C.Level.TrueColor{} : C.Level}
+
+# FORCE_COLOR=0, on a terminal, the program passing --color=16m: None
+law detect_flag_16m_force_0:
+  {C.Level.detect(C.Facts{True{}, Some{C.Level.TrueColor{}}, [C.Var.set("FORCE_COLOR", "0")]}) == C.Level.None{} : C.Level}
+
+# TERM=xterm-256color NO_COLOR=1, on a terminal, the program passing --color: Ansi256
+law detect_flag_color_no_color:
+  {C.Level.detect(C.Facts{True{}, Some{C.Level.Basic{}}, [C.Var.set("TERM", "xterm-256color"), C.Var.set("NO_COLOR", "1")]}) == C.Level.Ansi256{} : C.Level}
