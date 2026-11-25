@@ -1,15 +1,16 @@
 # bend-tty
 
-The terminal for [Bend](https://bend-lang.com) 2: raw mode, the window size
-and a timed read of stdin as host effects, plus the escapes and the key
-decoder a terminal UI needs, in pure Bend with its laws proven. Requires
-Bend 2.0.37: the effects use its C and JS effect API, which has no ABI
-promise across releases.
+The terminal for [Bend](https://bend-lang.com) 2: raw mode, the window size,
+a timed read of stdin and whether a stream is a terminal as host effects,
+plus the escapes, the key decoder and the colour level a terminal program
+needs, in pure Bend with its laws proven. Requires Bend 2.0.40: the effects
+use its C and JS effect API, which has no ABI promise across releases.
 
-The library is two files. `tty.bend` is pure: the escapes, `Key` and the
-decoder, everything the proofs need. `tty_io.bend` holds the three effects.
-A proof may import no foreign code, so the split keeps `PROOF.bend` on the
-pure file; a program imports both (Bend does not re-export imports).
+The pure files are `tty.bend` (the escapes, `Key` and the decoder) and
+`color.bend` (what a terminal can show: `Level` and `Level.detect`);
+`tty_io.bend` holds the effects. A proof may import no foreign code, so the
+split keeps `PROOF.bend` on the pure files; a program imports each file it
+names (Bend does not re-export imports).
 
 ```python
 import Base
@@ -71,6 +72,9 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 | `Tty.raw(on)` | `Bool -> IO(Unit)` | raw mode: no echo, no line buffering, Ctrl-C as byte 3. Turning it off, at exit or on SIGTERM/SIGHUP/SIGINT, also shows the cursor and leaves the alternate screen (not on a runtime fail-stop); a no-op when stdin is not a terminal |
 | `Tty.size()` | `IO(U32 & U32)` | columns and rows; 80 x 24 when unknown |
 | `Tty.read(ms, max)` | `U32 -> U32 -> IO(Maybe<&2, List<&2, U32>>)` | the bytes stdin has within `ms`, at most `max` (at least 1): `Some{[]}` on a timeout or when another computation drained the terminal first, `None` at the end of a pipe or on an error. Waits without blocking the other computations |
+| `Tty.isatty(fd)` | `U32 -> IO(Bool)` | is the descriptor a terminal (0 stdin, 1 stdout, 2 stderr); a closed or invalid one is not |
+| `Tty.facts(fd)` | `U32 -> IO(C.Facts)` | whether `fd` is a terminal and the environment `Level.detect` reads, with no override |
+| `Tty.level(fd)` | `U32 -> IO(C.Level)` | what the stream on `fd` can show: `Level.detect` of its facts |
 
 | pure (`tty.bend`) | what |
 | --- | --- |
@@ -80,6 +84,23 @@ piped: `printf '\033[Aq' | bend demos/keys.bend`.
 | `Tty.clear()`, `Tty.home()`, `Tty.goto(x, y)` | erase; the cursor home; to column x, row y (from 1) |
 | `Tty.alt(on)`, `Tty.cursor(show)` | the alternate screen; the cursor |
 | `Tty.fg(c)`, `Tty.bg(c)`, `Tty.bold()`, `Tty.reset()` | 256-color paint |
+
+| pure (`color.bend`) | what |
+| --- | --- |
+| `Level` | `Level.None` (no escapes at all), `Level.Basic` (16 colours), `Level.Ansi256`, `Level.TrueColor`; `Level.show(l)` |
+| `Facts{tty, force, env}` | `tty`: is the stream a terminal; `force`: the program's own override (`Some{Level.None{}}` for `--no-color`, `Basic` for `--color`, `Ansi256` for `--color=256`, `TrueColor` for `--color=16m`); `env`: a `Var{name, value}` per variable, `None` when unset and `Some{""}` when set but empty |
+| `Facts.forced(f, l)`, `Facts.names()` | the facts with an override; the variables `Level.detect` reads |
+| `Level.detect(f)` | `Facts -> Level`: [supports-color](https://github.com/chalk/supports-color)'s rules in its order, with `NO_COLOR` read and `COLORTERM=24bit` as truecolor (see below) |
+
+`Level.detect` answers what supports-color 11.0.0 answers for the same
+stream and environment, with three exceptions, each on purpose
+(`docs/grounding.md` has the comparison with the Node and Go libraries):
+
+- a non-empty `NO_COLOR` is `Level.None`, unless `FORCE_COLOR` is set or
+  the program forced a level; supports-color does not read `NO_COLOR`;
+- `COLORTERM=24bit` is truecolor, as `COLORTERM=truecolor` is;
+- it reads no argv (the program passes its flags as `force`) and has no
+  Windows branch.
 
 Every escape is a `String` for `IO.write`. A program is a loop: read, decode,
 update, draw a frame as one string.
@@ -102,13 +123,23 @@ demos use 4096) and a `ms` that lets a keystroke land whole.
 `Delete`/`PageUp`/`PageDown`, `Enter`/`Tab`/`Backspace`, `Ctrl`, a lone
 `Esc` and `Alt`, Home/End, Insert, F1-F12, a Shift-modified arrow, an
 unknown CSI, UTF-8 (`ç`, `€`) and its malformed shapes. Every claim is
-closed, so `PROOF.bend` is sixteen `{==}`: the checker runs the decoder, and
+closed, so each proof in `PROOF.bend` is `{==}`: the checker runs the decoder, and
 `bend PROOF.bend` prints `ALL PROOFS CHECK`. Change `Up` to `Down` in
 `Tty.letter.a` and it prints `SOME PROOFS FAIL` with the expected and
-observed terms. Both import `tty.bend` alone: importing `tty_io.bend`, or
-any file with foreign code, fails the verdict. A claim
+observed terms. Both import the pure files alone: importing `tty_io.bend`,
+or any file with foreign code, fails the verdict. A claim
 over every byte (32..126 decodes as itself) needs lemmas over `U32`, which
 no library has yet.
+
+`LAWS.bend` also states `Level.detect` on 56 environments a CLI meets:
+plain terminals and pipes, `TERM` from `dumb` to `xterm-kitty`, every
+`FORCE_COLOR` shape (`0`, `false`, `true`, empty, `007`, `9`, junk), the CI
+providers, TeamCity versions, iTerm and Apple Terminal, `NO_COLOR` with and
+without a force, and the program's overrides. Each expected level is the
+one supports-color 11.0.0's source gives for those facts, worked out by
+hand from `index.js` at `4963567`; the four rows where bend-tty differs on
+purpose say so beside the law. They are closed claims too, so their proofs
+are `{==}`.
 
 ## Lanes
 
@@ -125,6 +156,12 @@ no library has yet.
   libc access (`io_sys()`) is `bun:ffi`, so `Tty.read` stops with `Cannot
   find module 'bun:ffi'`. A `-o x.js` build succeeds even when an effect is
   broken; only running it shows the failure.
+- Verified on macOS (arm64) with Bend 2.0.40 and bun 1.4.5, natively and
+  under bun: `Tty.isatty` on a pty and piped, and `demos/level.bend` under
+  a pty and piped with `TERM=xterm-256color` (256 and none), `NO_COLOR=1`
+  (none), `COLORTERM=truecolor` (truecolor), `TERM=dumb` (none),
+  `FORCE_COLOR=3` (truecolor on both) and GitHub Actions (truecolor on a
+  pty, none piped), each lane answering the same.
 - Windows is not a Bend host and was not tried; `Tty.read` needs libc's
   `select` and `read` through `bun:ffi`.
 
@@ -180,12 +217,14 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
 ## Run
 
     bend tty.bend                        # the decoder on a sample
+    bend color.bend                      # Level.detect on sample environments
+    bend demos/level.bend                # this terminal's level; | cat for a pipe
     bend PROOF.bend                      # ALL PROOFS CHECK
     bend demos/keys.bend                 # interactive; or piped
     bend demos/counter.bend -o counter && ./counter
     bend demos/counter.bend -o counter.js && bun counter.js
 
-`bend LAWS.bend` reports the sixteen laws as TODOs (they are proven in
+`bend LAWS.bend` reports its 72 laws as TODOs (they are proven in
 `PROOF.bend`). `--check-only` on `tty_io.bend` or a demo prints `SOME PROOFS
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run

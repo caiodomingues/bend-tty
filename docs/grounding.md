@@ -80,6 +80,9 @@ order, with `sniffFlags` off:
    `xterm-ghostty` or `wezterm`: truecolor.
 9. `TERM_PROGRAM=iTerm.app`: truecolor if the major of
    `TERM_PROGRAM_VERSION` is 3 or more, else 256; `Apple_Terminal`: 256.
+   The major is JS's `Number` of what precedes the first dot: bend-tty
+   reads digits only (empty is 0), so the forms `Number` also takes, such
+   as ` 3` or `0x3`, count as not a number.
 10. `TERM` ending in `-256` or `-256color` (any case): 256.
 11. `TERM` starting with `screen`, `xterm`, `vt100`, `vt220` or `rxvt`, or
     containing `color`, `ansi`, `cygwin` or `linux` (any case): 16.
@@ -123,8 +126,7 @@ reverse order.
 
 ## Where bend-tty differs, and why
 
-Proposed, pending the owner's review of the API sketch; this section is
-amended with the decisions.
+Each point was agreed with the owner before the code was written.
 
 - **NO_COLOR.** supports-color and chalk do not read it at all (no match in
   either repo). bend-tty honours it as no-color.org says *(remembered)*: any
