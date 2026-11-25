@@ -202,7 +202,8 @@ the link was written with (`r_link` says so). `text_styled_width` and
 `text_styled_strip` say that painting a string changes neither its width
 nor, stripped, its text; `text_wrap_fits` that wrapped lines are never
 wider than the width, but for a single word longer than it in a soft
-wrap; `text_truncate_zero` holds for every string.
+wrap; `text_truncate_zero` and `text_wrap_zero` (a width of 0 leaves the
+string as it is) hold for every string.
 
 `inline_escapes`, `inline_erase_lines` and `inline_link` pin the inline
 escapes byte for byte, and `inline_link_text` says a link stripped is its
@@ -223,6 +224,9 @@ text, and as wide.
   libc access (`io_sys()`) is `bun:ffi`, so `Tty.read` stops with `Cannot
   find module 'bun:ffi'`. A `-o x.js` build succeeds even when an effect is
   broken; only running it shows the failure.
+- `color.bend`, `text.bend`, `unicode.bend`, `Tty.isatty` and the inline
+  escapes were verified on macOS only: they have not run on Linux (WSL)
+  yet.
 - Verified on macOS (arm64) with Bend 2.0.40 and bun 1.4.5, natively and
   under bun: `Tty.isatty` on a pty and piped, and `demos/level.bend` under
   a pty and piped with `TERM=xterm-256color` (256 and none), `NO_COLOR=1`
@@ -234,8 +238,9 @@ text, and as wide.
   samples give the same answers natively and under bun, and
   `demos/text.bend` writes the same bytes on both, piped (no ESC byte, also
   with `NO_COLOR=1`) and under a pty. So does `demos/inline.bend`: under a
-  pty it redraws its frame in place 20 times; piped it writes only the
-  finished frame and the link as text.
+  pty it redraws its frame in place 20 times; piped, or with `TERM=dumb`,
+  it writes only the finished frame and the link as text, also with
+  `FORCE_COLOR=3`.
 - Windows is not a Bend host and was not tried; `Tty.read` needs libc's
   `select` and `read` through `bun:ffi`.
 
@@ -302,7 +307,7 @@ so a consumer that imports `as IOT` writes `IOT.Tty.raw`.
     bend demos/counter.bend -o counter && ./counter
     bend demos/counter.bend -o counter.js && bun counter.js
 
-`bend LAWS.bend` reports its 208 laws as TODOs (they are proven in
+`bend LAWS.bend` reports its 209 laws as TODOs (they are proven in
 `PROOF.bend`). `--check-only` on `tty_io.bend` or a demo prints `SOME PROOFS
 FAIL` and lists the effects as foreign code: that is expected for any file
 that uses one, so their gate is a build with `-o` and a run. On Windows, run

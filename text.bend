@@ -1180,9 +1180,17 @@ def Rs.go(us: List<&2, Un>, +p: Pen, +had: Bool) -> String:
     case Un.Cl{+s, w} <> +t:
       Rs.piece(Rs.nl(s), s, had, p, t) ++ Rs.go(t, p, Bool.not(Rs.nl(s)))
 
-# s wrapped to cols columns; hard cuts words wider than cols
+# s wrapped to cols columns; hard cuts words wider than cols. No column
+# holds nothing, so a width of 0 leaves s as it is
+def Ansi.wrap.go(s: String, +cols: U32, +hard: Bool, none: Bool) -> String:
+  match none:
+    case True{}:
+      s
+    case False{}:
+      Rs.go(Ansi.units(Str.join(Wr.lines(Str.pieces(s, 10), cols, hard), "\n")), Pen.none(), False{})
+
 def Ansi.wrap(s: String, +cols: U32, +hard: Bool) -> String:
-  Rs.go(Ansi.units(Str.join(Wr.lines(Str.pieces(s, 10), cols, hard), "\n")), Pen.none(), False{})
+  Ansi.wrap.go(s, cols, hard, U32.is_eq(cols, 0))
 
 def Wr.widest(ls: List<&2, String>) -> U32:
   match ls:
